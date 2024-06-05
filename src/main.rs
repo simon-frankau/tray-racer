@@ -467,7 +467,7 @@ impl Drawable {
             let tex_data = renderer::render(&renderer::CanvasConfig {
                 width: 512,
                 height: 512,
-                aspect: 1.0,
+                aspect: 0.75,
                 fov: 1.0,
             });
             gl.tex_image_2d(

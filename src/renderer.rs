@@ -25,8 +25,11 @@ impl EnvMap {
         })
     }
 
-    // TODO: Work on -1..1 interval, etc.
     fn colour(&self, x: f64, y: f64) -> [u8; 4] {
+        // Convert face coordinates -1..1 to texture coordinates 0..1.
+        let x = 0.5 * (x + 1.0);
+        let y = 0.5 * (y + 1.0);
+        // Then scale to pixel coordinates.
         let img = &self.xmap.0;
         let (w, h) = img.dimensions();
         // Mapping semi-open interval [0..1) to [0..size).
@@ -47,16 +50,24 @@ pub fn render(conf: &CanvasConfig) -> Vec<u8> {
     // TODO: Still need to finalise and source-control these.
     let env_map = EnvMap::from(&Path::new("skyboxes/night-skyboxes/NightPath")).unwrap();
 
-    // TODO: Dumb and wrong version to start with.
+    // Invariants: start + step * (size - 1)/2 = 0.
+    let x_range = conf.fov * 2.0;
+    let x_step = -x_range / conf.width as f64;
+    let x_start = -0.5 * x_step * (conf.width - 1) as f64;
+
+    let y_range = x_range * conf.aspect;
+    let y_step = -y_range / conf.height as f64;
+    let y_start = -0.5 * y_step * (conf.height - 1) as f64;
+
     let mut v = Vec::new();
-    for y in 0..conf.height {
-        for x in 0..conf.width {
-            // Invert Y axis.
-            v.extend(env_map.colour(
-                x as f64 / conf.width as f64,
-                1.0 - y as f64 / conf.height as f64,
-            ));
+    let mut y = y_start;
+    for _ in 0..conf.height {
+        let mut x = x_start;
+        for _ in 0..conf.width {
+            v.extend(env_map.colour(x, y));
+            x += x_step;
         }
+        y += y_step;
     }
     v
 }
