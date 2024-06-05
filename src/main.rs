@@ -224,18 +224,12 @@ impl Platform {
                                     } = event
                                     {
                                         match k {
-                                            KeyCode::KeyW => {
-                                            }
-                                            KeyCode::KeyS => {
-                                            }
-                                            KeyCode::KeyA => {
-                                            }
-                                            KeyCode::KeyD => {
-                                            }
-                                            KeyCode::KeyQ => {
-                                            }
-                                            KeyCode::KeyE => {
-                                            }
+                                            KeyCode::KeyW => {}
+                                            KeyCode::KeyS => {}
+                                            KeyCode::KeyA => {}
+                                            KeyCode::KeyD => {}
+                                            KeyCode::KeyQ => {}
+                                            KeyCode::KeyE => {}
                                             _ => {}
                                         }
                                     }
@@ -286,8 +280,6 @@ impl Platform {
         Self::run_event_loop(event_loop, event_fn);
     }
 }
-
-const NAME: &str = "Curved Surfaces";
 
 impl Platform {
     fn new(width: u32, height: u32, name: &str) -> Result<Platform> {
@@ -393,6 +385,7 @@ impl Platform {
 // Main code.
 //
 
+const NAME: &str = "Tray Racer";
 const WIDTH: u32 = 1024;
 const HEIGHT: u32 = 768;
 
@@ -417,20 +410,27 @@ fn main() -> Result<()> {
 
 struct Drawable {
     program: Program,
-    tilt_id: UniformLocation,
     tilt: f32,
-    turn_id: UniformLocation,
     turn: f32,
-    x_scale_id: UniformLocation,
-    y_scale_id: UniformLocation,
-    color_id: UniformLocation,
-    shape1: Shape,
-    shape2: Shape,
-    shape3: Shape,
+    shape: Shape,
+    tex: Texture,
 }
 
 const VERT_SRC: &str = include_str!("shader/vertex.glsl");
 const FRAG_SRC: &str = include_str!("shader/fragment.glsl");
+
+fn texture() -> Vec<u8> {
+    let mut tex = vec![0; 256 * 256 * 4];
+    for y in 0..256 {
+        for x in 0..256 {
+            tex[(y * 256 + x) * 4 + 0] = x as u8;
+            tex[(y * 256 + x) * 4 + 1] = y as u8;
+            tex[(y * 256 + x) * 4 + 2] = if x & 0x10 == y & 0x10 { 255 } else { 0 };
+            tex[(y * 256 + x) * 4 + 3] = 255;
+        }
+    }
+    tex
+}
 
 impl Drawable {
     fn new(gl: &Context, shader_version: &str) -> Drawable {
@@ -462,39 +462,41 @@ impl Drawable {
                 panic!("{}", gl.get_program_info_log(program));
             }
 
-            let tilt_id = gl.get_uniform_location(program, "tilt").unwrap();
-            let turn_id = gl.get_uniform_location(program, "turn").unwrap();
-            let x_scale_id = gl.get_uniform_location(program, "x_scale").unwrap();
-            let y_scale_id = gl.get_uniform_location(program, "y_scale").unwrap();
-            let color_id = gl.get_uniform_location(program, "color").unwrap();
-
             for shader in shaders {
                 gl.detach_shader(program, shader);
                 gl.delete_shader(shader);
             }
 
-	    let mut shape1 = Shape::new(gl);
-	    let mut shape2 = Shape::new(gl);
-	    let mut shape3 = Shape::new(gl);
+            let mut shape = Shape::new(gl);
 
-	    shape1.rebuild(gl, &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0], &[0, 1]);
-	    shape2.rebuild(gl, &[0.0, 0.0, 0.0, 0.0, 1.0, 0.0], &[0, 1]);
-	    shape3.rebuild(gl, &[0.0, 0.0, 0.0, 0.0, 0.0, 1.0], &[0, 1]);
-	    
-            let mut this = Drawable {
+            shape.rebuild(
+                gl,
+                &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0],
+                &[0, 1, 3, 2],
+            );
+
+            let tex = gl.create_texture().unwrap();
+            gl.bind_texture(glow::TEXTURE_2D, Some(tex));
+            gl.tex_image_2d(
+                glow::TEXTURE_2D,
+                0,
+                glow::RGBA as i32,
+                256,
+                256,
+                0,
+                glow::RGBA,
+                glow::UNSIGNED_BYTE,
+                Some(&texture()),
+            );
+            gl.generate_mipmap(glow::TEXTURE_2D);
+
+            Drawable {
                 program,
-                tilt_id,
                 tilt: 30.0f32,
-                turn_id,
                 turn: 0.0f32,
-                x_scale_id,
-                y_scale_id,
-                color_id,
-		shape1,
-		shape2,
-		shape3,
-            };
-            this
+                shape,
+                tex,
+            }
         }
     }
 
@@ -509,28 +511,10 @@ impl Drawable {
 
     fn draw(&mut self, gl: &Context, width: u32, height: u32) {
         unsafe {
-            // Set up state shared across lines.
             gl.viewport(0, 0, width as i32, height as i32);
             gl.use_program(Some(self.program));
-            gl.uniform_1_f32(Some(&self.tilt_id), self.tilt);
-            gl.uniform_1_f32(Some(&self.turn_id), self.turn);
-            gl.uniform_1_f32(
-                Some(&self.x_scale_id),
-                (height as f32 / width as f32).min(1.0f32),
-            );
-            gl.uniform_1_f32(
-                Some(&self.y_scale_id),
-                (width as f32 / height as f32).min(1.0f32),
-            );
-
-            gl.uniform_3_f32(Some(&self.color_id), 0.5f32, 0.5f32, 0.5f32);
-            self.shape1.draw(gl, glow::LINES);
-
-            gl.uniform_3_f32(Some(&self.color_id), 1.0f32, 0.5f32, 0.5f32);
-	    self.shape2.draw(gl, glow::LINES);
-
-            gl.uniform_3_f32(Some(&self.color_id), 0.5f32, 01.0f32, 0.5f32);
-	    self.shape3.draw(gl, glow::LINES);
+            gl.bind_texture(glow::TEXTURE_2D, Some(self.tex));
+            self.shape.draw(gl, glow::TRIANGLE_STRIP);
         }
     }
 
@@ -538,8 +522,6 @@ impl Drawable {
         unsafe {
             gl.delete_program(self.program);
         }
-        self.shape1.close(gl);
-	self.shape2.close(gl);
-	self.shape3.close(gl);
+        self.shape.close(gl);
     }
 }
