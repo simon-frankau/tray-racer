@@ -32,10 +32,10 @@ impl Shape {
             gl.bind_vertex_array(Some(vao));
             gl.vertex_attrib_pointer_f32(
                 0,
-                3,
+                2,
                 glow::FLOAT,
                 false,
-                core::mem::size_of::<f32>() as i32 * 3,
+                core::mem::size_of::<f32>() as i32 * 2,
                 0,
             );
 
@@ -471,7 +471,7 @@ impl Drawable {
 
             shape.rebuild(
                 gl,
-                &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0],
+                &[0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0],
                 &[0, 1, 3, 2],
             );
 
