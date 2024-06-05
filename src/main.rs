@@ -6,6 +6,8 @@
 use anyhow::*;
 use glow::{Context, *};
 
+mod renderer;
+
 ////////////////////////////////////////////////////////////////////////
 // Shape: Representation of something to be drawn in OpenGL with a
 // single `draw_elements` call.
@@ -419,19 +421,6 @@ struct Drawable {
 const VERT_SRC: &str = include_str!("shader/vertex.glsl");
 const FRAG_SRC: &str = include_str!("shader/fragment.glsl");
 
-fn texture() -> Vec<u8> {
-    let mut tex = vec![0; 256 * 256 * 4];
-    for y in 0..256 {
-        for x in 0..256 {
-            tex[(y * 256 + x) * 4 + 0] = x as u8;
-            tex[(y * 256 + x) * 4 + 1] = y as u8;
-            tex[(y * 256 + x) * 4 + 2] = if x & 0x10 == y & 0x10 { 255 } else { 0 };
-            tex[(y * 256 + x) * 4 + 3] = 255;
-        }
-    }
-    tex
-}
-
 impl Drawable {
     fn new(gl: &Context, shader_version: &str) -> Drawable {
         unsafe {
@@ -469,11 +458,7 @@ impl Drawable {
 
             let mut shape = Shape::new(gl);
 
-            shape.rebuild(
-                gl,
-                &[0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0],
-                &[0, 1, 3, 2],
-            );
+            shape.rebuild(gl, &[0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0], &[0, 1, 3, 2]);
 
             let tex = gl.create_texture().unwrap();
             gl.bind_texture(glow::TEXTURE_2D, Some(tex));
@@ -481,12 +466,12 @@ impl Drawable {
                 glow::TEXTURE_2D,
                 0,
                 glow::RGBA as i32,
-                256,
-                256,
+                2048,
+                2048,
                 0,
                 glow::RGBA,
                 glow::UNSIGNED_BYTE,
-                Some(&texture()),
+                Some(&renderer::file_texture()),
             );
             gl.generate_mipmap(glow::TEXTURE_2D);
 
