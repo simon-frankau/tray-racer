@@ -462,16 +462,24 @@ impl Drawable {
 
             let tex = gl.create_texture().unwrap();
             gl.bind_texture(glow::TEXTURE_2D, Some(tex));
+
+            // TODO: Get the configuration right.
+            let tex_data = renderer::render(&renderer::CanvasConfig {
+                width: 512,
+                height: 512,
+                aspect: 1.0,
+                fov: 1.0,
+            });
             gl.tex_image_2d(
                 glow::TEXTURE_2D,
                 0,
                 glow::RGBA as i32,
-                2048,
-                2048,
+                512,
+                512,
                 0,
                 glow::RGBA,
                 glow::UNSIGNED_BYTE,
-                Some(&renderer::file_texture()),
+                Some(&tex_data),
             );
             gl.generate_mipmap(glow::TEXTURE_2D);
 
