@@ -248,18 +248,20 @@ impl Platform {
                             // the docs.
                             if let DeviceEvent::MouseMotion { delta } = event {
                                 let size = self.window.inner_size();
-                                let x = (delta.0 as f32) * 360.0 / size.width as f32;
-                                let y = (delta.1 as f32) * 180.0 / size.height as f32;
+                                let x = (delta.0 as f64) * 360.0 / size.width as f64;
+                                let y = (delta.1 as f64) * 180.0 / size.height as f64;
 
                                 let turn = &mut drawable.turn;
                                 let tilt = &mut drawable.tilt;
-                                *turn += x;
+                                *turn -= x;
                                 if *turn > 180.0 {
                                     *turn -= 360.0;
                                 } else if *turn < -180.0 {
                                     *turn += 360.0;
                                 }
                                 *tilt = (*tilt + y).min(90.0).max(-90.0);
+
+                                drawable.rebuild_tex(&self.gl)
                             }
                         }
                     }
@@ -412,8 +414,8 @@ fn main() -> Result<()> {
 
 struct Drawable {
     program: Program,
-    tilt: f32,
-    turn: f32,
+    tilt: f64,
+    turn: f64,
     shape: Shape,
     tex: Texture,
 }
@@ -461,15 +463,53 @@ impl Drawable {
             shape.rebuild(gl, &[0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0], &[0, 1, 3, 2]);
 
             let tex = gl.create_texture().unwrap();
-            gl.bind_texture(glow::TEXTURE_2D, Some(tex));
 
-            // TODO: Get the configuration right.
-            let tex_data = renderer::render(&renderer::CanvasConfig {
+            let drawable = Drawable {
+                program,
+                tilt: 0.0,
+                turn: 0.0,
+                shape,
+                tex,
+            };
+            drawable.rebuild_tex(gl);
+            drawable
+        }
+    }
+
+    fn ui(&mut self, ctx: &egui::Context, gl: &Context) {
+        egui::Window::new("Controls").show(ctx, |ui| {
+            // TODO
+            // if ui.button("Quit").clicked() {}
+            let mut need_retex = false;
+            need_retex |= ui
+                .add(egui::Slider::new(&mut self.tilt, -90.0..=90.0).text("Tilt"))
+                .changed();
+            need_retex |= ui
+                .add(egui::Slider::new(&mut self.turn, -180.0..=180.0).text("Turn"))
+                .changed();
+
+            if need_retex {
+                self.rebuild_tex(gl);
+            }
+        });
+    }
+
+    fn rebuild_tex(&self, gl: &Context) {
+        // TODO: Get the configuration right.
+        let tex_data = renderer::render(
+            &renderer::CanvasConfig {
                 width: 512,
                 height: 512,
                 aspect: 0.75,
                 fov: 1.0,
-            });
+            },
+            self.tilt,
+            self.turn,
+        );
+
+        unsafe {
+            gl.bind_texture(glow::TEXTURE_2D, Some(self.tex));
+
             gl.tex_image_2d(
                 glow::TEXTURE_2D,
                 0,
@@ -482,24 +522,7 @@ impl Drawable {
                 Some(&tex_data),
             );
             gl.generate_mipmap(glow::TEXTURE_2D);
-
-            Drawable {
-                program,
-                tilt: 30.0f32,
-                turn: 0.0f32,
-                shape,
-                tex,
-            }
         }
-    }
-
-    fn ui(&mut self, ctx: &egui::Context, gl: &Context) {
-        egui::Window::new("Controls").show(ctx, |ui| {
-            // TODO
-            // if ui.button("Quit").clicked() {}
-            ui.add(egui::Slider::new(&mut self.tilt, -90.0..=90.0).text("Tilt"));
-            ui.add(egui::Slider::new(&mut self.turn, -180.0..=180.0).text("Turn"));
-        });
     }
 
     fn draw(&mut self, gl: &Context, width: u32, height: u32) {

@@ -25,17 +25,24 @@ impl EnvMap {
         })
     }
 
-    fn colour(&self, x: f64, y: f64) -> [u8; 4] {
+    fn colour_face(&self, x: f64, y: f64, img: &image::RgbaImage) -> [u8; 4] {
         // Convert face coordinates -1..1 to texture coordinates 0..1.
         let x = 0.5 * (x + 1.0);
         let y = 0.5 * (y + 1.0);
         // Then scale to pixel coordinates.
-        let img = &self.xmap.0;
         let (w, h) = img.dimensions();
         // Mapping semi-open interval [0..1) to [0..size).
         let ix = ((x * w as f64) as u32).min(w - 1);
         let iy = ((y * h as f64) as u32).min(h - 1);
         img.get_pixel(ix, iy).0
+    }
+
+    fn colour(&self, x: f64, y: f64, z: f64) -> [u8; 4] {
+        if z.abs() > x.abs() && z.abs() > y.abs() {
+            self.colour_face(x, y, &self.xmap.0)
+        } else {
+            [0, 0, 0, 255]
+        }
     }
 }
 
@@ -46,9 +53,17 @@ pub struct CanvasConfig {
     pub fov: f64,
 }
 
-pub fn render(conf: &CanvasConfig) -> Vec<u8> {
+pub fn render(conf: &CanvasConfig, tilt: f64, turn: f64) -> Vec<u8> {
     // TODO: Still need to finalise and source-control these.
-    let env_map = EnvMap::from(&Path::new("skyboxes/night-skyboxes/NightPath")).unwrap();
+    let env_map = EnvMap::from(Path::new("skyboxes/night-skyboxes/NightPath")).unwrap();
+
+    let tilt_rad = -tilt * std::f64::consts::PI / 180.0;
+    let tilt_cos = tilt_rad.cos();
+    let tilt_sin = tilt_rad.sin();
+
+    let turn_rad = -turn * std::f64::consts::PI / 180.0;
+    let turn_cos = turn_rad.cos();
+    let turn_sin = turn_rad.sin();
 
     // Invariants: start + step * (size - 1)/2 = 0.
     let x_range = conf.fov * 2.0;
@@ -64,7 +79,17 @@ pub fn render(conf: &CanvasConfig) -> Vec<u8> {
     for _ in 0..conf.height {
         let mut x = x_start;
         for _ in 0..conf.width {
-            v.extend(env_map.colour(x, y));
+            let z = 1.0;
+
+            let tx = x;
+            let ty = y * tilt_cos + z * tilt_sin;
+            let tz = -y * tilt_sin + z * tilt_cos;
+
+            let t2x = tx * turn_cos + tz * turn_sin;
+            let t2y = ty;
+            let t2z = -tx * turn_sin + tz * turn_cos;
+
+            v.extend(env_map.colour(t2x, t2y, t2z));
             x += x_step;
         }
         y += y_step;
