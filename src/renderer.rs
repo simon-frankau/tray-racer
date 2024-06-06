@@ -10,7 +10,7 @@ use anyhow::Result;
 // way.
 type ImagePair = (image::RgbaImage, image::RgbaImage, bool);
 
-struct EnvMap {
+pub struct EnvMap {
     xmap: ImagePair,
     ymap: ImagePair,
     zmap: ImagePair,
@@ -19,7 +19,7 @@ struct EnvMap {
 // Build and sample a cubic environment map. Has various axis tweaks
 // to match the environment maps we use.
 impl EnvMap {
-    fn from(path: &Path) -> Result<EnvMap> {
+    pub fn from(path: &Path) -> Result<EnvMap> {
         let open = |s: &str| image::open(path.join(s)).map(|img| img.into_rgba8());
 
         Ok(EnvMap {
@@ -77,13 +77,7 @@ pub struct CanvasConfig {
     pub fov_degrees: f64,
 }
 
-pub fn render(conf: &CanvasConfig, tilt: f64, turn: f64) -> Vec<u8> {
-    // TODO: Still need to finalise and source-control these.
-    const SRC: &str = "skyboxes/beach-skyboxes/PalmTrees/";
-    // const SRC: &str = "skyboxes/beach-skyboxes/HeartInTheSand/";
-    // "skyboxes/night-skyboxes/NightPath"
-    let env_map = EnvMap::from(Path::new(SRC)).unwrap();
-
+pub fn render(env_map: &EnvMap, conf: &CanvasConfig, tilt: f64, turn: f64) -> Vec<u8> {
     let tilt_rad = -tilt * std::f64::consts::PI / 180.0;
     let tilt_cos = tilt_rad.cos();
     let tilt_sin = tilt_rad.sin();

@@ -3,10 +3,30 @@
 // my curved-spaces code and removing as much as I easily could.
 //
 
+use std::path::Path;
+
 use anyhow::*;
+use clap::Parser;
 use glow::{Context, *};
 
 mod renderer;
+
+////////////////////////////////////////////////////////////////////////
+// Command-line args
+
+// TODO: Still need to finalise and source-control these.
+const DEFAULT_ENV_MAP: &str = "skyboxes/beach-skyboxes/PalmTrees/";
+// const DEFAULT_ENV_MAP: &str = "skyboxes/beach-skyboxes/HeartInTheSand/";
+// "skyboxes/night-skyboxes/NightPath"
+
+/// Program to allow you to view distorted space
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// Directory containing env maps
+    #[arg(short, long, default_value_t = DEFAULT_ENV_MAP.to_string())]
+    env_map: String,
+}
 
 ////////////////////////////////////////////////////////////////////////
 // Shape: Representation of something to be drawn in OpenGL with a
@@ -396,9 +416,10 @@ const HEIGHT: u32 = 768;
 fn main() -> Result<()> {
     env_logger::init();
 
+    let args = Args::parse();
     let mut p = Platform::new(WIDTH, HEIGHT, NAME)?;
 
-    let drawable = Drawable::new(&p.gl, p.shader_version);
+    let drawable = Drawable::new(&p.gl, p.shader_version, &Path::new(&args.env_map));
 
     unsafe {
         p.gl.clear_color(0.1, 0.2, 0.3, 1.0);
@@ -413,6 +434,7 @@ fn main() -> Result<()> {
 }
 
 struct Drawable {
+    env_map: renderer::EnvMap,
     program: Program,
     tilt: f64,
     turn: f64,
@@ -424,7 +446,9 @@ const VERT_SRC: &str = include_str!("shader/vertex.glsl");
 const FRAG_SRC: &str = include_str!("shader/fragment.glsl");
 
 impl Drawable {
-    fn new(gl: &Context, shader_version: &str) -> Drawable {
+    fn new(gl: &Context, shader_version: &str, env_map_path: &Path) -> Drawable {
+        let env_map = renderer::EnvMap::from(env_map_path).unwrap();
+
         unsafe {
             let program = gl.create_program().expect("Cannot create program");
 
@@ -465,6 +489,7 @@ impl Drawable {
             let tex = gl.create_texture().unwrap();
 
             let drawable = Drawable {
+                env_map,
                 program,
                 tilt: 0.0,
                 turn: 0.0,
@@ -497,6 +522,7 @@ impl Drawable {
     fn rebuild_tex(&self, gl: &Context) {
         // TODO: Get the configuration right.
         let tex_data = renderer::render(
+            &self.env_map,
             &renderer::CanvasConfig {
                 width: 1024,
                 height: 768,
