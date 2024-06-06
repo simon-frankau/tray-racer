@@ -12,11 +12,7 @@ https://github.com/simon-frankau/curved-spaces/ .
 
 At this stage, everything! Simple initial steps are:
 
- * Display poly
- * Draw texture, get textured poly displayed. For now we'll do all
-   rendering in software, and just use GL as a canvas.
- * Load environment map from PNG, simply display it.
- * Do environment mapping in software.
+ * Complete software environment mapping.
  * Start tracing rays into the environment map...
 
 ## Design choices
@@ -28,3 +24,8 @@ since it gives me a simple starting point. I've ripped out the support
 for wasm because, even though the maintenance cost was pretty minimal,
 I don't really care about it right now. I've removed it in a way that
 shouldn't make it too hard to add back in later.
+
+## Environment maps
+
+The environment maps were sourced from
+https://opengameart.org/content/skybox .

@@ -498,10 +498,10 @@ impl Drawable {
         // TODO: Get the configuration right.
         let tex_data = renderer::render(
             &renderer::CanvasConfig {
-                width: 512,
-                height: 512,
-                aspect: 0.75,
-                fov: 1.0,
+                width: 1024,
+                height: 768,
+                aspect: 1.0,
+                fov_degrees: 90.0,
             },
             self.tilt,
             self.turn,
@@ -514,8 +514,8 @@ impl Drawable {
                 glow::TEXTURE_2D,
                 0,
                 glow::RGBA as i32,
-                512,
-                512,
+                1024,
+                768,
                 0,
                 glow::RGBA,
                 glow::UNSIGNED_BYTE,
