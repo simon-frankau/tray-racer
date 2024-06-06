@@ -1,10 +1,18 @@
 //
-// Display-independent rendering of the scene.
+// renderer.rs: Display-independent rendering of the scene.
 //
 
 use std::path::Path;
 
 use anyhow::Result;
+
+use crate::vec4::*;
+
+type Pixel = [u8; 4];
+
+////////////////////////////////////////////////////////////////////////
+// Environment map.
+//
 
 // Last bool is "is vertical?". Vertical pair flips in a different
 // way.
@@ -29,8 +37,8 @@ impl EnvMap {
         })
     }
 
-    // Normalised to have largest direction in z.
-    fn colour_face(&self, x: f64, y: f64, z: f64, img_pair: &ImagePair) -> [u8; 4] {
+    // Coordinates should be normalised to have largest direction in z.
+    fn colour_face(&self, x: f64, y: f64, z: f64, img_pair: &ImagePair) -> Pixel {
         // Get image for appropriate direction.
         let img = if z > 0.0 { &img_pair.0 } else { &img_pair.1 };
         // Normalise coordinates. Does some flipping as needed to make
@@ -51,18 +59,27 @@ impl EnvMap {
         img.get_pixel(ix, iy).0
     }
 
-    fn colour(&self, x: f64, y: f64, z: f64) -> [u8; 4] {
-        let (ax, ay, az) = (x.abs(), y.abs(), z.abs());
+    // Ignores the w component.
+    fn colour(&self, dir: Dir4) -> Pixel {
+        let (ax, ay, az) = (dir.x.abs(), dir.y.abs(), dir.z.abs());
         // We do some coordinate flipping to make sure the faces'
         // edges match up.
         if az > ax && az > ay {
-            self.colour_face(x, y, z, &self.xmap)
+            self.colour_face(dir.x, dir.y, dir.z, &self.xmap)
         } else if ax > ay {
-            self.colour_face(z, y, -x, &self.zmap)
+            self.colour_face(dir.z, dir.y, -dir.x, &self.zmap)
         } else {
-            self.colour_face(-z, -x, y, &self.ymap)
+            self.colour_face(-dir.z, -dir.x, dir.y, &self.ymap)
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////
+// Tracer/renderer
+//
+
+pub struct Tracer {
+    pub env_map: EnvMap,
 }
 
 // Configuration for the screen we expect. `render` then returns an
@@ -77,46 +94,67 @@ pub struct CanvasConfig {
     pub fov_degrees: f64,
 }
 
-pub fn render(env_map: &EnvMap, conf: &CanvasConfig, tilt: f64, turn: f64) -> Vec<u8> {
-    let tilt_rad = -tilt * std::f64::consts::PI / 180.0;
-    let tilt_cos = tilt_rad.cos();
-    let tilt_sin = tilt_rad.sin();
+impl Tracer {
+    //`Render a whole scene by tracing all the rays in the canvas.
+    pub fn render(&self, conf: &CanvasConfig, tilt: f64, turn: f64) -> Vec<u8> {
+        let tilt_rad = -tilt * std::f64::consts::PI / 180.0;
+        let tilt_cos = tilt_rad.cos();
+        let tilt_sin = tilt_rad.sin();
 
-    let turn_rad = -turn * std::f64::consts::PI / 180.0;
-    let turn_cos = turn_rad.cos();
-    let turn_sin = turn_rad.sin();
+        let turn_rad = -turn * std::f64::consts::PI / 180.0;
+        let turn_cos = turn_rad.cos();
+        let turn_sin = turn_rad.sin();
 
-    let fov_rad = conf.fov_degrees * std::f64::consts::PI / 180.0;
-    let fov = (fov_rad * 0.5).tan();
+        let fov_rad = conf.fov_degrees * std::f64::consts::PI / 180.0;
+        let fov = (fov_rad * 0.5).tan();
 
-    // Invariants: start + step * (size - 1)/2 = 0.
-    let x_range = fov * 2.0;
-    let x_step = -x_range / conf.width as f64;
-    let x_start = -0.5 * x_step * (conf.width - 1) as f64;
+        // Invariants: start + step * (size - 1)/2 = 0.
+        let x_range = fov * 2.0;
+        let x_step = -x_range / conf.width as f64;
+        let x_start = -0.5 * x_step * (conf.width - 1) as f64;
 
-    let y_range = x_range * conf.aspect * conf.height as f64 / conf.width as f64;
-    let y_step = -y_range / conf.height as f64;
-    let y_start = -0.5 * y_step * (conf.height - 1) as f64;
+        let y_range = x_range * conf.aspect * conf.height as f64 / conf.width as f64;
+        let y_step = -y_range / conf.height as f64;
+        let y_start = -0.5 * y_step * (conf.height - 1) as f64;
 
-    let mut v = Vec::new();
-    let mut y = y_start;
-    for _ in 0..conf.height {
-        let mut x = x_start;
-        for _ in 0..conf.width {
-            let z = 1.0;
+        let mut v = Vec::new();
+        let mut y = y_start;
+        for _ in 0..conf.height {
+            let mut x = x_start;
+            for _ in 0..conf.width {
+                let z = 1.0;
 
-            let tx = x;
-            let ty = y * tilt_cos + z * tilt_sin;
-            let tz = -y * tilt_sin + z * tilt_cos;
+                let tx = x;
+                let ty = y * tilt_cos + z * tilt_sin;
+                let tz = -y * tilt_sin + z * tilt_cos;
 
-            let t2x = tx * turn_cos + tz * turn_sin;
-            let t2y = ty;
-            let t2z = -tx * turn_sin + tz * turn_cos;
+                let t2x = tx * turn_cos + tz * turn_sin;
+                let t2y = ty;
+                let t2z = -tx * turn_sin + tz * turn_cos;
 
-            v.extend(env_map.colour(t2x, t2y, t2z));
-            x += x_step;
+                v.extend(self.trace(
+                    Point4 {
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                        w: 0.0,
+                    },
+                    Dir4 {
+                        x: t2x,
+                        y: t2y,
+                        z: t2z,
+                        w: 0.0,
+                    },
+                ));
+                x += x_step;
+            }
+            y += y_step;
         }
-        y += y_step;
+        v
     }
-    v
+
+    // Trace a single ray.
+    fn trace(&self, p: Point4, dir: Dir4) -> Pixel {
+        self.env_map.colour(dir)
+    }
 }

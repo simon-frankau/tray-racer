@@ -10,6 +10,7 @@ use clap::Parser;
 use glow::{Context, *};
 
 mod renderer;
+mod vec4;
 
 ////////////////////////////////////////////////////////////////////////
 // Command-line args
@@ -434,7 +435,7 @@ fn main() -> Result<()> {
 }
 
 struct Drawable {
-    env_map: renderer::EnvMap,
+    tracer: renderer::Tracer,
     program: Program,
     tilt: f64,
     turn: f64,
@@ -489,7 +490,7 @@ impl Drawable {
             let tex = gl.create_texture().unwrap();
 
             let drawable = Drawable {
-                env_map,
+                tracer: renderer::Tracer { env_map },
                 program,
                 tilt: 0.0,
                 turn: 0.0,
@@ -521,8 +522,7 @@ impl Drawable {
 
     fn rebuild_tex(&self, gl: &Context) {
         // TODO: Get the configuration right.
-        let tex_data = renderer::render(
-            &self.env_map,
+        let tex_data = self.tracer.render(
             &renderer::CanvasConfig {
                 width: 1024,
                 height: 768,
