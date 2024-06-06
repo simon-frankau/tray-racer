@@ -153,6 +153,7 @@ impl Platform {
             });
 
         let mut repaint_delay = std::time::Duration::MAX;
+        // Used to detect dragging on the image to pan.
         let mut left_button_down = false;
 
         let event_fn =
@@ -201,6 +202,7 @@ impl Platform {
                     }
                 };
 
+                let mut needs_retex = false;
                 match event {
                     Event::WindowEvent { event, .. } => {
                         if matches!(event, WindowEvent::CloseRequested | WindowEvent::Destroyed) {
@@ -215,6 +217,21 @@ impl Platform {
 
                         if let WindowEvent::Resized(physical_size) = &event {
                             self.resize(physical_size);
+                        }
+
+                        // We're interacting if the mouse button is
+                        // down, whether it's in an egui element or
+                        // not.
+                        if let WindowEvent::MouseInput {
+                            button: MouseButton::Left,
+                            state,
+                            ..
+                        } = &event
+                        {
+                            drawable.fast_draw = *state == ElementState::Pressed;
+                            if !drawable.fast_draw {
+                                needs_retex = true;
+                            }
                         }
 
                         let event_response = egui_glow.on_window_event(&self.window, &event);
@@ -299,6 +316,12 @@ impl Platform {
                     }
 
                     _ => (),
+                }
+                // Do this right after everything else in the event
+                // loop, so we get a nice high-res redraw after all
+                // the interaction-processing.
+                if needs_retex {
+                    drawable.rebuild_tex(&self.gl);
                 }
             };
 
@@ -441,10 +464,14 @@ struct Drawable {
     turn: f64,
     shape: Shape,
     tex: Texture,
+    fast_draw: bool,
 }
 
 const VERT_SRC: &str = include_str!("shader/vertex.glsl");
 const FRAG_SRC: &str = include_str!("shader/fragment.glsl");
+
+// The tracing resolution used during interactive updates.
+const FAST_RES: usize = 128;
 
 impl Drawable {
     fn new(gl: &Context, shader_version: &str, env_map_path: &Path) -> Drawable {
@@ -496,6 +523,7 @@ impl Drawable {
                 turn: 0.0,
                 shape,
                 tex,
+                fast_draw: false,
             };
             drawable.rebuild_tex(gl);
             drawable
@@ -521,11 +549,18 @@ impl Drawable {
     }
 
     fn rebuild_tex(&self, gl: &Context) {
-        // TODO: Get the configuration right.
+        // TODO: Pull this from the context or whatever.
+        let (base_w, base_h) = (1024, 768);
+        let (w, h) = if self.fast_draw {
+            (FAST_RES, FAST_RES * base_h / base_w)
+        } else {
+            (base_w, base_h)
+        };
+
         let tex_data = self.tracer.render(
             &renderer::CanvasConfig {
-                width: 1024,
-                height: 768,
+                width: w,
+                height: h,
                 aspect: 1.0,
                 fov_degrees: 90.0,
             },
@@ -540,8 +575,8 @@ impl Drawable {
                 glow::TEXTURE_2D,
                 0,
                 glow::RGBA as i32,
-                1024,
-                768,
+                w as i32,
+                h as i32,
                 0,
                 glow::RGBA,
                 glow::UNSIGNED_BYTE,
