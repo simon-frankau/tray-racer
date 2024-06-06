@@ -269,8 +269,8 @@ impl Platform {
                             // the docs.
                             if let DeviceEvent::MouseMotion { delta } = event {
                                 let size = self.window.inner_size();
-                                let x = (delta.0 as f64) * 360.0 / size.width as f64;
-                                let y = (delta.1 as f64) * 180.0 / size.height as f64;
+                                let x = delta.0 * 360.0 / size.width as f64;
+                                let y = delta.1 * 180.0 / size.height as f64;
 
                                 let turn = &mut drawable.turn;
                                 let tilt = &mut drawable.tilt;
@@ -420,7 +420,7 @@ fn main() -> Result<()> {
     let args = Args::parse();
     let mut p = Platform::new(WIDTH, HEIGHT, NAME)?;
 
-    let drawable = Drawable::new(&p.gl, p.shader_version, &Path::new(&args.env_map));
+    let drawable = Drawable::new(&p.gl, p.shader_version, Path::new(&args.env_map));
 
     unsafe {
         p.gl.clear_color(0.1, 0.2, 0.3, 1.0);
