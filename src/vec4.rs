@@ -29,7 +29,7 @@ impl Vec4 {
         }
     }
 
-    pub fn add(&self, rhs: &Vec4) -> Vec4 {
+    pub fn add(&self, rhs: Vec4) -> Vec4 {
         Vec4 {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
@@ -38,7 +38,7 @@ impl Vec4 {
         }
     }
 
-    pub fn sub(&self, rhs: &Vec4) -> Vec4 {
+    pub fn sub(&self, rhs: Vec4) -> Vec4 {
         Vec4 {
             x: self.x - rhs.x,
             y: self.y - rhs.y,
@@ -47,7 +47,7 @@ impl Vec4 {
         }
     }
 
-    pub fn dot(&self, rhs: &Vec4) -> f64 {
+    pub fn dot(&self, rhs: Vec4) -> f64 {
         self.x * rhs.x + self.y * rhs.y + self.z * rhs.z + self.w * rhs.w
     }
 

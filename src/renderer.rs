@@ -78,6 +78,14 @@ impl EnvMap {
 // Tracer/renderer
 //
 
+// Radius beyond which we assume that space is effectively flat,
+// so that the direction will not change further, and we can look
+// it up in the environment map.
+const RADIUS: f64 = 4.0;
+
+// Ray stepping size.
+const RAY_STEP: f64 = 0.01;
+
 pub struct Tracer {
     pub env_map: EnvMap,
 }
@@ -155,6 +163,15 @@ impl Tracer {
 
     // Trace a single ray.
     fn trace(&self, p: Point4, dir: Dir4) -> Pixel {
-        self.env_map.colour(dir)
+        let mut p = p;
+        let delta = dir.norm().scale(RAY_STEP);
+
+        while p.len() < RADIUS {
+            p = p.add(delta);
+        }
+
+        // TODO: Should be dir, but using p ensures the previous loop
+        // is evaluated.
+        self.env_map.colour(p)
     }
 }
