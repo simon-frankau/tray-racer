@@ -91,30 +91,10 @@ const RADIUS: f64 = 4.0;
 // Ray stepping size.
 const RAY_STEP: f64 = 0.01;
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub enum Function {
-    Plane,
-    PosCurve,
-    NegCurve,
-    Hole,
-}
-
-impl Function {
-    fn label(&self) -> &'static str {
-        match self {
-            Function::Plane => "Plane",
-            Function::PosCurve => "Positive curvature",
-            Function::NegCurve => "Negative curvature",
-            Function::Hole => "Wormhole",
-        }
-    }
-}
-
 pub struct Tracer {
     pub env_map_pos: EnvMap,
     pub env_map_neg: EnvMap,
     pub w_scale: f64,
-    pub func: Function,
 }
 
 // Configuration for the screen we expect. `render` then returns an
@@ -136,22 +116,6 @@ impl Tracer {
         needs_retex |= ui
             .add(egui::Slider::new(&mut self.w_scale, -1.0..=1.0).text("W scale"))
             .changed();
-        needs_retex |= egui::ComboBox::from_label("Function")
-            .selected_text(self.func.label())
-            .show_ui(ui, |ui| {
-                [
-                    Function::Plane,
-                    Function::PosCurve,
-                    Function::NegCurve,
-                    Function::Hole,
-                ]
-                .iter()
-                .map(|x| ui.selectable_value(&mut self.func, *x, x.label()).changed())
-                // Force evaluation of whole list.
-                .fold(false, |a, b| a || b)
-            })
-            .inner
-            .unwrap_or(false);
         if needs_retex {
             // TODO
         }
@@ -271,21 +235,9 @@ impl Tracer {
             return point.w;
         }
 
-        // If the surface folds back, put a floor on the absolute
-        // w_scale, otherwise multiple solutions get too close
-        // together and the solver has a bad time.
-        let mut w_scale = self.w_scale;
-        if self.func == Function::Hole {
-            w_scale = w_scale.signum() * w_scale.abs().max(0.02);
-        }
-
+	let w_scale = self.w_scale.signum() * self.w_scale.abs().max(0.02);
         let (x, y, z, w) = (point.x, point.y, point.z, point.w / w_scale);
-        match self.func {
-            Function::Plane => (x + y + z) * 0.5 - w,
-            Function::PosCurve => -(x * x + y * y + z * z) * 0.5 - w,
-            Function::NegCurve => (x * x + y * y - z * z) * 0.5 - w,
-            Function::Hole => x * x + y * y + z * z - w * w - 0.1,
-        }
+        x * x + y * y + z * z - w * w - 0.1
     }
 
     fn intersect_line(&self, point: Point4, direction: Dir4) -> Option<Point4> {

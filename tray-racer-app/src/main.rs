@@ -534,7 +534,6 @@ impl Drawable {
                     env_map_pos,
                     env_map_neg,
                     w_scale: 0.25,
-                    func: renderer::Function::Hole,
                 },
                 program,
                 tilt: 0.0,
