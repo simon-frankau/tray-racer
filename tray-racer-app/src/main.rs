@@ -533,6 +533,8 @@ impl Drawable {
                     env_map_pos,
                     env_map_neg,
                     w_scale: 0.25,
+                    radius: 0.1,
+                    infinity: 4.0,
                 },
                 program,
                 tilt: 0.0,
@@ -556,6 +558,15 @@ impl Drawable {
                 .changed();
             need_retex |= ui
                 .add(egui::Slider::new(&mut self.turn, -180.0..=180.0).text("Turn"))
+                .changed();
+            need_retex |= ui
+                .add(egui::Slider::new(&mut self.tracer.radius, -1.0..=1.0).text("Wormhole radius"))
+                .changed();
+            need_retex |= ui
+                .add(egui::Slider::new(&mut self.tracer.w_scale, 0.1..=1.0).text("Smoothness"))
+                .changed();
+            need_retex |= ui
+                .add(egui::Slider::new(&mut self.tracer.infinity, 1.0..=10.0).text("Infinity"))
                 .changed();
 
             if need_retex {

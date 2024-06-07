@@ -81,20 +81,21 @@ impl EnvMap {
 // Tracer/renderer
 //
 
-// Radius beyond which we assume that space is effectively flat,
-// so that the direction will not change further, and we can look
-// it up in the environment map.
-//
-// TODO: Make configurable?
-const RADIUS: f64 = 4.0;
-
 // Ray stepping size.
 const RAY_STEP: f64 = 0.01;
 
 pub struct Tracer {
     pub env_map_pos: EnvMap,
     pub env_map_neg: EnvMap,
+    // How we scale w in the equation. effectively controls the depth
+    // of the wormhole.
     pub w_scale: f64,
+    // Radius of the wormhole.
+    pub radius: f64,
+    // Radius beyond which we assume that space is effectively flat,
+    // so that the direction will not change further, and we can look
+    // it up in the environment map.
+    pub infinity: f64,
 }
 
 // Configuration for the screen we expect. `render` then returns an
@@ -187,7 +188,7 @@ impl Tracer {
         let mut p = self.project_vertical(p).unwrap();
         let mut old_p = self.project_vertical(p.sub(delta)).unwrap();
 
-        while p.len() < RADIUS {
+        while p.len() < self.infinity {
             let delta = p.sub(old_p).norm().scale(RAY_STEP);
             let norm = self.normal_at(p).norm();
 
@@ -239,7 +240,7 @@ impl Tracer {
 
         let w_scale = self.w_scale.signum() * self.w_scale.abs().max(0.02);
         let (x, y, z, w) = (point.x, point.y, point.z, point.w / w_scale);
-        x * x + y * y + z * z - w * w - 0.1
+        x * x + y * y + z * z - w * w - self.radius
     }
 
     fn intersect_line(&self, point: Point4, direction: Dir4) -> Option<Point4> {

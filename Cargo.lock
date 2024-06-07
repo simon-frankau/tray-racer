@@ -1987,7 +1987,6 @@ dependencies = [
  "glow",
  "glutin",
  "glutin-winit",
- "image",
  "log",
  "raw-window-handle 0.5.2",
  "tray-racer-lib",
