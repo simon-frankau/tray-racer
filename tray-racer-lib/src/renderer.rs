@@ -125,7 +125,7 @@ impl Tracer {
      */
 
     // Render a whole scene by tracing all the rays in the canvas.
-    pub fn render(&self, conf: &CanvasConfig, tilt: f64, turn: f64) -> Vec<u8> {
+    pub fn render(&self, conf: &CanvasConfig, tilt: f64, turn: f64, pan: f64) -> Vec<u8> {
         let tilt_rad = -tilt * std::f64::consts::PI / 180.0;
         let tilt_cos = tilt_rad.cos();
         let tilt_sin = tilt_rad.sin();
@@ -146,6 +146,17 @@ impl Tracer {
         let y_step = -y_range / conf.height as f64;
         let y_start = -0.5 * y_step * (conf.height - 1) as f64;
 
+        // Set the camera position.
+        let pan_rad = pan * std::f64::consts::PI / 180.0;
+        let pan_sin = pan_rad.sin();
+        let pan_cos = pan_rad.cos();
+        let origin = Point4 {
+            x: pan_sin,
+            y: 0.0,
+            z: -pan_cos,
+            w: 1.0,
+        };
+
         let mut v = Vec::new();
         let mut y = y_start;
         for _ in 0..conf.height {
@@ -161,20 +172,15 @@ impl Tracer {
                 let t2y = ty;
                 let t2z = -tx * turn_sin + tz * turn_cos;
 
-                v.extend(self.trace(
-                    Point4 {
-                        x: 0.0,
-                        y: 0.0,
-                        z: -1.0,
-                        w: 1.0,
-                    },
-                    Dir4 {
-                        x: t2x,
-                        y: t2y,
-                        z: t2z,
-                        w: 0.0,
-                    },
-                ));
+                // And rotate the looking direction to be centered around (0, 0, 0)
+                let dir = Dir4 {
+                    x: t2x * pan_cos - t2z * pan_sin,
+                    y: t2y,
+                    z: t2x * pan_sin + t2z * pan_cos,
+                    w: 0.0,
+                };
+
+                v.extend(self.trace(origin, dir));
                 x += x_step;
             }
             y += y_step;

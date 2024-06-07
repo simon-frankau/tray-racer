@@ -468,9 +468,12 @@ struct Drawable {
     program: Program,
     tilt: f64,
     turn: f64,
+    pan: f64,
     shape: Shape,
     tex: Texture,
     fast_draw: bool,
+    fov: f64,
+    downsampling: usize,
 }
 
 const VERT_SRC: &str = include_str!("shader/vertex.glsl");
@@ -539,9 +542,12 @@ impl Drawable {
                 program,
                 tilt: 0.0,
                 turn: 0.0,
+                pan: 0.0,
                 shape,
                 tex,
+                fov: 90.0,
                 fast_draw: false,
+                downsampling: 4,
             };
             drawable.rebuild_tex(gl);
             drawable
@@ -554,10 +560,19 @@ impl Drawable {
             // if ui.button("Quit").clicked() {}
             let mut need_retex = false;
             need_retex |= ui
+                .add(egui::Slider::new(&mut self.fov, 20.0..=160.0).text("Field of view"))
+                .changed();
+            need_retex |= ui
+                .add(egui::Slider::new(&mut self.downsampling, 0..=4).text("Downsampling"))
+                .changed();
+            need_retex |= ui
                 .add(egui::Slider::new(&mut self.tilt, -90.0..=90.0).text("Tilt"))
                 .changed();
             need_retex |= ui
                 .add(egui::Slider::new(&mut self.turn, -180.0..=180.0).text("Turn"))
+                .changed();
+            need_retex |= ui
+                .add(egui::Slider::new(&mut self.pan, -180.0..=180.0).text("Pan"))
                 .changed();
             need_retex |= ui
                 .add(egui::Slider::new(&mut self.tracer.radius, -1.0..=1.0).text("Wormhole radius"))
@@ -581,7 +596,7 @@ impl Drawable {
         let (w, h) = if self.fast_draw {
             (FAST_RES, FAST_RES * base_h / base_w)
         } else {
-            (base_w, base_h)
+            (base_w >> self.downsampling, base_h >> self.downsampling)
         };
 
         let tex_data = self.tracer.render(
@@ -589,10 +604,11 @@ impl Drawable {
                 width: w,
                 height: h,
                 aspect: 1.0,
-                fov_degrees: 90.0,
+                fov_degrees: self.fov,
             },
             self.tilt,
             self.turn,
+            self.pan,
         );
 
         unsafe {
