@@ -517,7 +517,11 @@ impl Drawable {
             let tex = gl.create_texture().unwrap();
 
             let drawable = Drawable {
-                tracer: renderer::Tracer { env_map },
+                tracer: renderer::Tracer {
+                    env_map,
+                    w_scale: 0.25,
+                    func: renderer::Function::Plane,
+                },
                 program,
                 tilt: 0.0,
                 turn: 0.0,

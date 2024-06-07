@@ -84,13 +84,36 @@ impl EnvMap {
 // Radius beyond which we assume that space is effectively flat,
 // so that the direction will not change further, and we can look
 // it up in the environment map.
+//
+// TODO: Make configurable?
 const RADIUS: f64 = 4.0;
 
 // Ray stepping size.
 const RAY_STEP: f64 = 0.01;
 
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum Function {
+    Plane,
+    PosCurve,
+    NegCurve,
+    Hole,
+}
+
+impl Function {
+    fn label(&self) -> &'static str {
+        match self {
+            Function::Plane => "Plane",
+            Function::PosCurve => "Positive curvature",
+            Function::NegCurve => "Negative curvature",
+            Function::Hole => "Wormhole",
+        }
+    }
+}
+
 pub struct Tracer {
     pub env_map: EnvMap,
+    pub w_scale: f64,
+    pub func: Function,
 }
 
 // Configuration for the screen we expect. `render` then returns an
@@ -106,7 +129,34 @@ pub struct CanvasConfig {
 }
 
 impl Tracer {
-    //`Render a whole scene by tracing all the rays in the canvas.
+    // TODO: Not configurable for now.
+    pub fn ui(&mut self, ui: &mut egui::Ui) {
+        let mut needs_retex = false;
+        needs_retex |= ui
+            .add(egui::Slider::new(&mut self.w_scale, -1.0..=1.0).text("W scale"))
+            .changed();
+        needs_retex |= egui::ComboBox::from_label("Function")
+            .selected_text(self.func.label())
+            .show_ui(ui, |ui| {
+                [
+                    Function::Plane,
+                    Function::PosCurve,
+                    Function::NegCurve,
+                    Function::Hole,
+                ]
+                .iter()
+                .map(|x| ui.selectable_value(&mut self.func, *x, x.label()).changed())
+                // Force evaluation of whole list.
+                .fold(false, |a, b| a || b)
+            })
+            .inner
+            .unwrap_or(false);
+        if needs_retex {
+            // TODO
+        }
+    }
+
+    // Render a whole scene by tracing all the rays in the canvas.
     pub fn render(&self, conf: &CanvasConfig, tilt: f64, turn: f64) -> Vec<u8> {
         let tilt_rad = -tilt * std::f64::consts::PI / 180.0;
         let tilt_cos = tilt_rad.cos();
@@ -147,8 +197,8 @@ impl Tracer {
                     Point4 {
                         x: 0.0,
                         y: 0.0,
-                        z: 0.0,
-                        w: 0.0,
+                        z: -1.0,
+                        w: 1.0,
                     },
                     Dir4 {
                         x: t2x,
@@ -166,80 +216,45 @@ impl Tracer {
 
     // Trace a single ray.
     fn trace(&self, p: Point4, dir: Dir4) -> Pixel {
-        let mut p = p;
         let delta = dir.norm().scale(RAY_STEP);
+        let mut p = self.project_vertical(p).unwrap();
+        let mut old_p = self.project_vertical(p.sub(delta)).unwrap();
 
         while p.len() < RADIUS {
-            p = p.add(delta);
+            let delta = p.sub(old_p).norm().scale(RAY_STEP);
+            let norm = self.normal_at(p).norm();
+
+            if let Some(new_p) = self.step(p, delta, norm) {
+                (p, old_p) = (new_p, p);
+            } else {
+                panic!("trace_aux could not extend path");
+            }
         }
 
-        // TODO: Should be dir, but using p ensures the previous loop
-        // is evaluated.
+        // TODO: This is final position, not direction.
         self.env_map.colour(p)
     }
-}
 
-////////////////////////////////////////////////////////////////////////
-// TODO
-//
-
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub enum Function {
-    Plane,
-    PosCurve,
-    NegCurve,
-    Hole,
-}
-
-impl Function {
-    fn label(&self) -> &'static str {
-        match self {
-            Function::Plane => "Plane",
-            Function::PosCurve => "Positive curvature",
-            Function::NegCurve => "Negative curvature",
-            Function::Hole => "Wormhole",
+    // Take a step from p in direction delta, constrained to the
+    // surface in direction norm.
+    fn step(&self, p: Point4, delta: Dir4, norm: Dir4) -> Option<Point4> {
+        let mut delta = delta.clone();
+        // If curvature is extreme, there may be no intersection,
+        // because the normal at p and the normal at the intersection
+        // point are sufficiently different. We try again with a
+        // smaller step.
+        //
+        // An example of extreme curvature is the "wormhole" surface
+        // with w_scale around e.g. 0.01.
+        const MAX_ITER: usize = 8;
+        let mut new_p = None;
+        let mut iter = 0;
+        while new_p.is_none() && iter < MAX_ITER {
+            new_p = self.intersect_line(p.add(delta), norm);
+            delta = delta.scale(0.5);
+            iter += 1;
         }
-    }
-}
-
-pub struct Tracer2 {
-    w_scale: f64,
-    func: Function,
-}
-
-impl Tracer2 {
-    pub fn new() -> Tracer2 {
-        Tracer2 {
-            w_scale: 0.25,
-            func: Function::Plane,
-        }
-    }
-
-    pub fn ui(&mut self, ui: &mut egui::Ui) {
-        use egui::Color32;
-        let mut needs_retex = false;
-        needs_retex |= ui
-            .add(egui::Slider::new(&mut self.w_scale, -1.0..=1.0).text("W scale"))
-            .changed();
-        needs_retex |= egui::ComboBox::from_label("Function")
-            .selected_text(self.func.label())
-            .show_ui(ui, |ui| {
-                [
-                    Function::Plane,
-                    Function::PosCurve,
-                    Function::NegCurve,
-                    Function::Hole,
-                ]
-                .iter()
-                .map(|x| ui.selectable_value(&mut self.func, *x, x.label()).changed())
-                // Force evaluation of whole list.
-                .fold(false, |a, b| a || b)
-            })
-            .inner
-            .unwrap_or(false);
-        if needs_retex {
-            // TODO
-        }
+        new_p
     }
 
     // Not a true distance, but the implicit surface function, where
@@ -309,28 +324,6 @@ impl Tracer2 {
         self.intersect_line(point, VERTICAL)
     }
 
-    // Take a step from p in direction delta, constrained to the
-    // surface in direction norm.
-    fn step(&self, p: Point4, delta: Dir4, norm: Dir4) -> Option<Point4> {
-        let mut delta = delta.clone();
-        // If curvature is extreme, there may be no intersection,
-        // because the normal at p and the normal at the intersection
-        // point are sufficiently different. We try again with a
-        // smaller step.
-        //
-        // An example of extreme curvature is the "wormhole" surface
-        // with w_scale around e.g. 0.01.
-        const MAX_ITER: usize = 8;
-        let mut new_p = None;
-        let mut iter = 0;
-        while new_p.is_none() && iter < MAX_ITER {
-            new_p = self.intersect_line(p.add(delta), norm);
-            delta = delta.scale(0.5);
-            iter += 1;
-        }
-        new_p
-    }
-
     // Calculate a normal vector using finite differences.
     fn normal_at(&self, p: Point4) -> Dir4 {
         let base_dist = self.dist(p);
@@ -352,56 +345,5 @@ impl Tracer2 {
                 ..p
             }) - base_dist,
         }
-    }
-
-    fn plot_path(&self, point: Point4, prev: Point4) -> Option<Point4> {
-        let mut p = point.clone();
-        let mut old_p = prev.clone();
-
-        while p.x.abs() <= 1.0 && p.y.abs() <= 1.0 && p.z.abs() <= 1.0 {
-            let delta = p.sub(old_p).norm().scale(RAY_STEP);
-            let norm = self.normal_at(p).norm();
-
-            if let Some(new_p) = self.step(p, delta, norm) {
-                (p, old_p) = (new_p, p);
-            } else {
-                log::error!("plot_path could not extend path");
-                return None;
-            }
-        }
-
-        Some(p)
-    }
-
-    fn repath(&mut self, x0: f64, y0: f64, z0: f64, ray_dir: f64) -> Option<Point4> {
-        let p = if let Some(p) = self.project_vertical(Point4 {
-            x: x0,
-            y: y0,
-            z: z0,
-            w: 1.0,
-        }) {
-            p
-        } else {
-            // No intersection point at ray_start. Give up.
-            return None;
-        };
-
-        let ray_dir_rad = ray_dir * std::f64::consts::PI / 180.0;
-        let delta = Dir4 {
-            x: ray_dir_rad.sin() * RAY_STEP,
-            y: ray_dir_rad.cos() * RAY_STEP,
-            z: 0.0,
-            w: 0.0,
-        };
-
-        // Take a step back, roughly, for initial previous point.
-        let old_p = if let Some(p) = self.project_vertical(p.sub(delta)) {
-            p
-        } else {
-            // No intersection point near ray_start. Give up.
-            return None;
-        };
-
-        self.plot_path(p, old_p)
     }
 }
