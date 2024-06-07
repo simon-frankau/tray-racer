@@ -3,5 +3,5 @@
 resolver = "2"
 
 members = [
-    "tray-racer-app",
+    "tray-racer-app", "tray-racer-lib",
 ]

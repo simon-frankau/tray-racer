@@ -111,6 +111,7 @@ pub struct CanvasConfig {
 
 impl Tracer {
     // TODO: Not configurable for now.
+    /*
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         let mut needs_retex = false;
         needs_retex |= ui
@@ -120,6 +121,7 @@ impl Tracer {
             // TODO
         }
     }
+     */
 
     // Render a whole scene by tracing all the rays in the canvas.
     pub fn render(&self, conf: &CanvasConfig, tilt: f64, turn: f64) -> Vec<u8> {
@@ -196,12 +198,12 @@ impl Tracer {
             }
         }
 
-	let final_dir = p.sub(old_p);
-	if final_dir.w > 0.0 {
+        let final_dir = p.sub(old_p);
+        if final_dir.w > 0.0 {
             self.env_map_pos.colour(final_dir)
-	} else {
-	    self.env_map_neg.colour(final_dir)
-	}
+        } else {
+            self.env_map_neg.colour(final_dir)
+        }
     }
 
     // Take a step from p in direction delta, constrained to the
@@ -235,7 +237,7 @@ impl Tracer {
             return point.w;
         }
 
-	let w_scale = self.w_scale.signum() * self.w_scale.abs().max(0.02);
+        let w_scale = self.w_scale.signum() * self.w_scale.abs().max(0.02);
         let (x, y, z, w) = (point.x, point.y, point.z, point.w / w_scale);
         x * x + y * y + z * z - w * w - 0.1
     }

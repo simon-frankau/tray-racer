@@ -9,8 +9,7 @@ use anyhow::*;
 use clap::Parser;
 use glow::{Context, *};
 
-mod renderer;
-mod vec4;
+use tray_racer_lib::{CanvasConfig, EnvMap, Tracer};
 
 ////////////////////////////////////////////////////////////////////////
 // Command-line args
@@ -465,7 +464,7 @@ fn main() -> Result<()> {
 }
 
 struct Drawable {
-    tracer: renderer::Tracer,
+    tracer: Tracer,
     program: Program,
     tilt: f64,
     turn: f64,
@@ -487,8 +486,8 @@ impl Drawable {
         env_map_path_pos: &Path,
         env_map_path_neg: &Path,
     ) -> Drawable {
-        let env_map_pos = renderer::EnvMap::from(env_map_path_pos).unwrap();
-        let env_map_neg = renderer::EnvMap::from(env_map_path_neg).unwrap();
+        let env_map_pos = EnvMap::from(env_map_path_pos).unwrap();
+        let env_map_neg = EnvMap::from(env_map_path_neg).unwrap();
 
         unsafe {
             let program = gl.create_program().expect("Cannot create program");
@@ -530,7 +529,7 @@ impl Drawable {
             let tex = gl.create_texture().unwrap();
 
             let drawable = Drawable {
-                tracer: renderer::Tracer {
+                tracer: Tracer {
                     env_map_pos,
                     env_map_neg,
                     w_scale: 0.25,
@@ -575,7 +574,7 @@ impl Drawable {
         };
 
         let tex_data = self.tracer.render(
-            &renderer::CanvasConfig {
+            &CanvasConfig {
                 width: w,
                 height: h,
                 aspect: 1.0,

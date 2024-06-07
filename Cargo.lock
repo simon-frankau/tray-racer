@@ -1990,8 +1990,17 @@ dependencies = [
  "image",
  "log",
  "raw-window-handle 0.5.2",
+ "tray-racer-lib",
  "web-time",
  "winit",
+]
+
+[[package]]
+name = "tray-racer-lib"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "image",
 ]
 
 [[package]]
