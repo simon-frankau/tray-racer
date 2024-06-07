@@ -231,8 +231,7 @@ impl Tracer {
             }
         }
 
-        // TODO: This is final position, not direction.
-        self.env_map.colour(p)
+        self.env_map.colour(p.sub(old_p))
     }
 
     // Take a step from p in direction delta, constrained to the

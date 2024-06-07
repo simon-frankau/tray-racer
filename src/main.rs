@@ -520,7 +520,7 @@ impl Drawable {
                 tracer: renderer::Tracer {
                     env_map,
                     w_scale: 0.25,
-                    func: renderer::Function::Plane,
+                    func: renderer::Function::Hole,
                 },
                 program,
                 tilt: 0.0,
