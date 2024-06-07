@@ -10,6 +10,9 @@ use crate::vec4::*;
 
 type Pixel = [u8; 4];
 
+// Step size when doing finite-difference calculations.
+const EPSILON: f64 = 1.0e-7;
+
 ////////////////////////////////////////////////////////////////////////
 // Environment map.
 //
@@ -173,5 +176,232 @@ impl Tracer {
         // TODO: Should be dir, but using p ensures the previous loop
         // is evaluated.
         self.env_map.colour(p)
+    }
+}
+
+////////////////////////////////////////////////////////////////////////
+// TODO
+//
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum Function {
+    Plane,
+    PosCurve,
+    NegCurve,
+    Hole,
+}
+
+impl Function {
+    fn label(&self) -> &'static str {
+        match self {
+            Function::Plane => "Plane",
+            Function::PosCurve => "Positive curvature",
+            Function::NegCurve => "Negative curvature",
+            Function::Hole => "Wormhole",
+        }
+    }
+}
+
+pub struct Tracer2 {
+    w_scale: f64,
+    func: Function,
+}
+
+impl Tracer2 {
+    pub fn new() -> Tracer2 {
+        Tracer2 {
+            w_scale: 0.25,
+            func: Function::Plane,
+        }
+    }
+
+    pub fn ui(&mut self, ui: &mut egui::Ui) {
+        use egui::Color32;
+        let mut needs_retex = false;
+        needs_retex |= ui
+            .add(egui::Slider::new(&mut self.w_scale, -1.0..=1.0).text("W scale"))
+            .changed();
+        needs_retex |= egui::ComboBox::from_label("Function")
+            .selected_text(self.func.label())
+            .show_ui(ui, |ui| {
+                [
+                    Function::Plane,
+                    Function::PosCurve,
+                    Function::NegCurve,
+                    Function::Hole,
+                ]
+                .iter()
+                .map(|x| ui.selectable_value(&mut self.func, *x, x.label()).changed())
+                // Force evaluation of whole list.
+                .fold(false, |a, b| a || b)
+            })
+            .inner
+            .unwrap_or(false);
+        if needs_retex {
+            // TODO
+        }
+    }
+
+    // Not a true distance, but the implicit surface function, where
+    // the surface is all points where dist == 0.
+    fn dist(&self, point: Point4) -> f64 {
+        // If w_scale is zero, the implicit surface needs to be
+        // special-cased to work.
+        if self.w_scale.abs() <= EPSILON {
+            return point.w;
+        }
+
+        // If the surface folds back, put a floor on the absolute
+        // w_scale, otherwise multiple solutions get too close
+        // together and the solver has a bad time.
+        let mut w_scale = self.w_scale;
+        if self.func == Function::Hole {
+            w_scale = w_scale.signum() * w_scale.abs().max(0.02);
+        }
+
+        let (x, y, z, w) = (point.x, point.y, point.z, point.w / w_scale);
+        match self.func {
+            Function::Plane => (x + y + z) * 0.5 - w,
+            Function::PosCurve => -(x * x + y * y + z * z) * 0.5 - w,
+            Function::NegCurve => (x * x + y * y - z * z) * 0.5 - w,
+            Function::Hole => x * x + y * y + z * z - w * w - 0.1,
+        }
+    }
+
+    fn intersect_line(&self, point: Point4, direction: Dir4) -> Option<Point4> {
+        // Newton-Raphson solver on dist(point + lambda direction)
+        //
+        // In practice, it's locally flat enough that a a single
+        // iteration seems to suffice.
+        const MAX_ITER: usize = 10;
+
+        let mut lambda = 0.0;
+        for _ in 0..MAX_ITER {
+            let guess = point.add(direction.scale(lambda));
+            let guess_val = self.dist(guess);
+            if guess_val.abs() < EPSILON {
+                return Some(guess);
+            }
+
+            let guess2 = point.add(direction.scale(lambda + EPSILON));
+            let guess2_val = self.dist(guess2);
+
+            let dguess_val = (guess2_val - guess_val) / EPSILON;
+
+            lambda -= guess_val / dguess_val;
+        }
+
+        // Could fall back to binary chop, but as it generally seems
+        // to converge in <= 2 iterations if there is a solution, this
+        // seems excessive.
+        None
+    }
+
+    // Intersect the surface with a line in the w-axis from the
+    // point.
+    fn project_vertical(&self, point: Point4) -> Option<Point4> {
+        const VERTICAL: Dir4 = Dir4 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            w: 1.0,
+        };
+        self.intersect_line(point, VERTICAL)
+    }
+
+    // Take a step from p in direction delta, constrained to the
+    // surface in direction norm.
+    fn step(&self, p: Point4, delta: Dir4, norm: Dir4) -> Option<Point4> {
+        let mut delta = delta.clone();
+        // If curvature is extreme, there may be no intersection,
+        // because the normal at p and the normal at the intersection
+        // point are sufficiently different. We try again with a
+        // smaller step.
+        //
+        // An example of extreme curvature is the "wormhole" surface
+        // with w_scale around e.g. 0.01.
+        const MAX_ITER: usize = 8;
+        let mut new_p = None;
+        let mut iter = 0;
+        while new_p.is_none() && iter < MAX_ITER {
+            new_p = self.intersect_line(p.add(delta), norm);
+            delta = delta.scale(0.5);
+            iter += 1;
+        }
+        new_p
+    }
+
+    // Calculate a normal vector using finite differences.
+    fn normal_at(&self, p: Point4) -> Dir4 {
+        let base_dist = self.dist(p);
+        Dir4 {
+            x: self.dist(Point4 {
+                x: p.x + EPSILON,
+                ..p
+            }) - base_dist,
+            y: self.dist(Point4 {
+                y: p.y + EPSILON,
+                ..p
+            }) - base_dist,
+            z: self.dist(Point4 {
+                z: p.z + EPSILON,
+                ..p
+            }) - base_dist,
+            w: self.dist(Point4 {
+                w: p.w + EPSILON,
+                ..p
+            }) - base_dist,
+        }
+    }
+
+    fn plot_path(&self, point: Point4, prev: Point4) -> Option<Point4> {
+        let mut p = point.clone();
+        let mut old_p = prev.clone();
+
+        while p.x.abs() <= 1.0 && p.y.abs() <= 1.0 && p.z.abs() <= 1.0 {
+            let delta = p.sub(old_p).norm().scale(RAY_STEP);
+            let norm = self.normal_at(p).norm();
+
+            if let Some(new_p) = self.step(p, delta, norm) {
+                (p, old_p) = (new_p, p);
+            } else {
+                log::error!("plot_path could not extend path");
+                return None;
+            }
+        }
+
+        Some(p)
+    }
+
+    fn repath(&mut self, x0: f64, y0: f64, z0: f64, ray_dir: f64) -> Option<Point4> {
+        let p = if let Some(p) = self.project_vertical(Point4 {
+            x: x0,
+            y: y0,
+            z: z0,
+            w: 1.0,
+        }) {
+            p
+        } else {
+            // No intersection point at ray_start. Give up.
+            return None;
+        };
+
+        let ray_dir_rad = ray_dir * std::f64::consts::PI / 180.0;
+        let delta = Dir4 {
+            x: ray_dir_rad.sin() * RAY_STEP,
+            y: ray_dir_rad.cos() * RAY_STEP,
+            z: 0.0,
+            w: 0.0,
+        };
+
+        // Take a step back, roughly, for initial previous point.
+        let old_p = if let Some(p) = self.project_vertical(p.sub(delta)) {
+            p
+        } else {
+            // No intersection point near ray_start. Give up.
+            return None;
+        };
+
+        self.plot_path(p, old_p)
     }
 }
