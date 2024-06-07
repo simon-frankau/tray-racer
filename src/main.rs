@@ -16,17 +16,19 @@ mod vec4;
 // Command-line args
 
 // TODO: Still need to finalise and source-control these.
-const DEFAULT_ENV_MAP: &str = "skyboxes/beach-skyboxes/PalmTrees/";
-// const DEFAULT_ENV_MAP: &str = "skyboxes/beach-skyboxes/HeartInTheSand/";
-// "skyboxes/night-skyboxes/NightPath"
+const DEFAULT_ENV_MAP_POS: &str = "skyboxes/beach-skyboxes/HeartInTheSand";
+const DEFAULT_ENV_MAP_NEG: &str = "skyboxes/night-skyboxes/PondNight";
 
 /// Program to allow you to view distorted space
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// Directory containing env maps
-    #[arg(short, long, default_value_t = DEFAULT_ENV_MAP.to_string())]
-    env_map: String,
+    /// Directory containing positive-w env maps
+    #[arg(long, default_value_t = DEFAULT_ENV_MAP_POS.to_string())]
+    env_map_pos: String,
+    /// Directory containing negative-w env maps
+    #[arg(long, default_value_t = DEFAULT_ENV_MAP_NEG.to_string())]
+    env_map_neg: String,
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -443,7 +445,12 @@ fn main() -> Result<()> {
     let args = Args::parse();
     let mut p = Platform::new(WIDTH, HEIGHT, NAME)?;
 
-    let drawable = Drawable::new(&p.gl, p.shader_version, Path::new(&args.env_map));
+    let drawable = Drawable::new(
+        &p.gl,
+        p.shader_version,
+        Path::new(&args.env_map_pos),
+        Path::new(&args.env_map_neg),
+    );
 
     unsafe {
         p.gl.clear_color(0.1, 0.2, 0.3, 1.0);
@@ -474,8 +481,14 @@ const FRAG_SRC: &str = include_str!("shader/fragment.glsl");
 const FAST_RES: usize = 128;
 
 impl Drawable {
-    fn new(gl: &Context, shader_version: &str, env_map_path: &Path) -> Drawable {
-        let env_map = renderer::EnvMap::from(env_map_path).unwrap();
+    fn new(
+        gl: &Context,
+        shader_version: &str,
+        env_map_path_pos: &Path,
+        env_map_path_neg: &Path,
+    ) -> Drawable {
+        let env_map_pos = renderer::EnvMap::from(env_map_path_pos).unwrap();
+        let env_map_neg = renderer::EnvMap::from(env_map_path_neg).unwrap();
 
         unsafe {
             let program = gl.create_program().expect("Cannot create program");
@@ -518,7 +531,8 @@ impl Drawable {
 
             let drawable = Drawable {
                 tracer: renderer::Tracer {
-                    env_map,
+                    env_map_pos,
+                    env_map_neg,
                     w_scale: 0.25,
                     func: renderer::Function::Hole,
                 },

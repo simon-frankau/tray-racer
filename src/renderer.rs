@@ -111,7 +111,8 @@ impl Function {
 }
 
 pub struct Tracer {
-    pub env_map: EnvMap,
+    pub env_map_pos: EnvMap,
+    pub env_map_neg: EnvMap,
     pub w_scale: f64,
     pub func: Function,
 }
@@ -231,7 +232,12 @@ impl Tracer {
             }
         }
 
-        self.env_map.colour(p.sub(old_p))
+	let final_dir = p.sub(old_p);
+	if final_dir.w > 0.0 {
+            self.env_map_pos.colour(final_dir)
+	} else {
+	    self.env_map_neg.colour(final_dir)
+	}
     }
 
     // Take a step from p in direction delta, constrained to the
