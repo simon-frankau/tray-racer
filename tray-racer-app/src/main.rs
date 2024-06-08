@@ -473,7 +473,7 @@ struct Drawable {
     tex: Texture,
     fast_draw: bool,
     fov: f64,
-    downsampling: usize,
+    upscaling: usize,
 }
 
 const VERT_SRC: &str = include_str!("shader/vertex.glsl");
@@ -547,7 +547,7 @@ impl Drawable {
                 tex,
                 fov: 90.0,
                 fast_draw: false,
-                downsampling: 4,
+                upscaling: 4,
             };
             drawable.rebuild_tex(gl);
             drawable
@@ -563,7 +563,7 @@ impl Drawable {
                 .add(egui::Slider::new(&mut self.fov, 20.0..=160.0).text("Field of view"))
                 .changed();
             need_retex |= ui
-                .add(egui::Slider::new(&mut self.downsampling, 0..=4).text("Downsampling"))
+                .add(egui::Slider::new(&mut self.upscaling, 0..=4).text("Upscaling"))
                 .changed();
             need_retex |= ui
                 .add(egui::Slider::new(&mut self.tilt, -90.0..=90.0).text("Tilt"))
@@ -596,7 +596,7 @@ impl Drawable {
         let (w, h) = if self.fast_draw {
             (FAST_RES, FAST_RES * base_h / base_w)
         } else {
-            (base_w >> self.downsampling, base_h >> self.downsampling)
+            (base_w >> self.upscaling, base_h >> self.upscaling)
         };
 
         let tex_data = self.tracer.render(
