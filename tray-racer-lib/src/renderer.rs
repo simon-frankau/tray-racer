@@ -30,6 +30,17 @@ pub struct EnvMap {
 // Build and sample a cubic environment map. Has various axis tweaks
 // to match the environment maps we use.
 impl EnvMap {
+    // Stub envmap for tests etc.
+    pub fn new() -> EnvMap {
+        let img = image::RgbaImage::new(1, 1);
+        let img_pair = (img.clone(), img.clone(), false);
+        EnvMap {
+            xmap: img_pair.clone(),
+            ymap: img_pair.clone(),
+            zmap: img_pair.clone(),
+        }
+    }
+
     pub fn from(path: &Path) -> Result<EnvMap> {
         let open = |s: &str| image::open(path.join(s)).map(|img| img.into_rgba8());
 

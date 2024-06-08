@@ -12,13 +12,9 @@ const MIN_SIZE: f64 = 0.001;
 const SCALE: f64 = 2.0;
 const STEPS: usize = 7;
 
-// TODO: These maps are unnecessary and loading them slows down the code...
-const ENV_MAP_PATH_POS: &str = "skyboxes/beach-skyboxes/HeartInTheSand";
-const ENV_MAP_PATH_NEG: &str = "skyboxes/night-skyboxes/PondNight";
-
 fn main() {
-    let env_map_pos = EnvMap::from(Path::new(ENV_MAP_PATH_POS)).unwrap();
-    let env_map_neg = EnvMap::from(Path::new(ENV_MAP_PATH_NEG)).unwrap();
+    let env_map_pos = EnvMap::new();
+    let env_map_neg = EnvMap::new();
 
     let tracer = Tracer {
         env_map_pos,
