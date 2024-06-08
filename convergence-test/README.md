@@ -1,0 +1,44 @@
+# Convergence testing
+
+Given that rendering a scene involves firing a lot of rays, we want to
+make each ray cheap. Each ray involves stepping along the path, so
+minimising the number of steps seems a good idea.
+
+Tracing along the path is effectively a numerical differential
+equation solver, and the convergence on the true solution is going to
+depend on the step size. This trade-off between accuracy and step size
+is what this project intends to explore.
+
+## Vague theory
+
+There's a complicating factor in that if the path is overall
+divergent, a small error at the start can accumulate over the course
+of the path. That is, the way errors accumulate along the path depend
+on positive and negative curvature. For simplicity's sake, I'm going
+to ignore this, but I suspect that this is also a good reason why I
+should look at the empirical convergence behaviour (see below).
+
+Assuming (incorrectly) that the final error is simply an accumulation
+of step-wise error along the path, we can look into the local
+convergence properties. If this were simply a linear approximation to
+a curve, we would expect the convergence to be quadratic, as error
+accumulates from the second-order term being approximated
+linearly. However, we don't do a linear approximation: the whole point
+of the algorithm is to take a linear step and then solve for a point
+in the surface to take account of the local curvature. The error in
+the step comes from the change in curvature along the length of the
+step.
+
+Naively, I expect convergence to be cubic - the error comes from the
+change in normal perpendicular to the current plane of curviture, so
+it's got a derivative-of-a-derivative element to it. Furthermore, we
+expect the the error to be proportional to that second
+derivative/twistiness term.
+
+While I could try to convert my intuition into some formal maths, I'd
+much rather do some practical tests on my application and see how it
+behaves.
+
+## Practical results
+
+TODO
