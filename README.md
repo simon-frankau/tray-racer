@@ -49,6 +49,13 @@ people who think about this as I do. Good luck!
    improvements, even if that's "run insanely fast on a GPU". For this
    project I want to keep my code simple, and not spend time looking
    at detailed optimisations.
+ * **Space-specific optimisation** The implicit surface is a simple
+   polynomial, so its derivative can be calculated symbolically, but
+   I'm still using finite difference to retain flexibility and knock
+   out one source of complexity (albeit to replace it with other
+   numerical stability issues). There could even be a closed form
+   solution for the paths involved, but I'm not really interested in
+   that.
  * **Anti-aliasing** You can get cheap (but poor) anti-aliasing by
    rendering at a higher resolution and downscaling.
  * **Automated tests** Yeah, I don't have a very good excuse on this
