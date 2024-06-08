@@ -207,7 +207,7 @@ impl Tracer {
     // Take a step from p in direction delta, constrained to the
     // surface in direction norm.
     fn step(&self, p: Point4, delta: Dir4, norm: Dir4) -> Option<Point4> {
-        let mut delta = delta.clone();
+        let mut delta = delta;
         // If curvature is extreme, there may be no intersection,
         // because the normal at p and the normal at the intersection
         // point are sufficiently different. We try again with a
