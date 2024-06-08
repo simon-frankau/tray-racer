@@ -324,7 +324,9 @@ impl Tracer {
 // TODO!
 #[derive(Debug)]
 pub struct TraceStats {
-    pub dir: Dir4,
+    pub step_dir: Dir4,
+    pub deriv_dir: Dir4,
+    pub point: Dir4,
 }
 
 impl Tracer {
@@ -386,6 +388,31 @@ impl Tracer {
             }
         }
 
-        TraceStats { dir: p.sub(old_p) }
+	let step_dir = p.sub(old_p);
+	let norm = self.normal_at(p).norm();
+	let deriv_dir = step_dir.sub(norm.scale(step_dir.dot(norm)));
+	let point = self.clip_to_radius(p, old_p);
+
+        TraceStats { step_dir, deriv_dir, point }
+    }
+
+    // Excessively precise way to clip the line to end on the given
+    // radius, so that the clipping doesn't distort the error
+    // calculation.
+    fn clip_to_radius(&self, p: Point4, prev_p: Point4) -> Point4 {
+	// I <heart/> basic Newton-Raphson.
+	let delta = p.sub(prev_p);
+	let mut lambda = 0.0;
+	loop {
+	    let guess = prev_p.add(delta.scale(lambda));
+	    let radius_diff = guess.dot(guess) - self.infinity.powi(2);
+	    if radius_diff.abs() < EPSILON {
+		return guess;
+	    }
+	    // d radius / d lambda = d radius / d guess * d guess/ lambda
+	    let deriv = 2.0 * guess.dot(delta);
+
+	    lambda -= radius_diff / deriv;
+	}
     }
 }
