@@ -110,20 +110,11 @@ pub struct CanvasConfig {
     pub fov_degrees: f64,
 }
 
-impl Tracer {
-    // TODO: Not configurable for now.
-    /*
-    pub fn ui(&mut self, ui: &mut egui::Ui) {
-        let mut needs_retex = false;
-        needs_retex |= ui
-            .add(egui::Slider::new(&mut self.w_scale, -1.0..=1.0).text("W scale"))
-            .changed();
-        if needs_retex {
-            // TODO
-        }
-    }
-     */
+////////////////////////////////////////////////////////////////////////
+// Standard renderer
+//
 
+impl Tracer {
     // Render a whole scene by tracing all the rays in the canvas.
     pub fn render(&self, conf: &CanvasConfig, tilt: f64, turn: f64, pan: f64) -> Vec<u8> {
         let tilt_rad = -tilt * std::f64::consts::PI / 180.0;
@@ -311,5 +302,79 @@ impl Tracer {
                 ..p
             }) - base_dist,
         }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////
+// Renderer that returns ray stats, for understanding convergence
+// behaviour.
+//
+
+// TODO!
+#[derive(Debug)]
+pub struct TraceStats {
+    pub dir: Dir4,
+}
+
+impl Tracer {
+    // Render a whole scene by tracing all the rays in the canvas.
+    pub fn render_stats(&self, conf: &CanvasConfig, step_size: f64) -> Vec<TraceStats> {
+        let fov_rad = conf.fov_degrees * std::f64::consts::PI / 180.0;
+        let fov = (fov_rad * 0.5).tan();
+
+        // Invariants: start + step * (size - 1)/2 = 0.
+        let x_range = fov * 2.0;
+        let x_step = -x_range / conf.width as f64;
+        let x_start = -0.5 * x_step * (conf.width - 1) as f64;
+
+        let y_range = x_range * conf.aspect * conf.height as f64 / conf.width as f64;
+        let y_step = -y_range / conf.height as f64;
+        let y_start = -0.5 * y_step * (conf.height - 1) as f64;
+
+        // Set the camera position.
+        let origin = Point4 {
+            x: 0.0,
+            y: 0.0,
+            z: -1.0,
+            w: 1.0,
+        };
+
+        let mut v = Vec::new();
+        let mut y = y_start;
+        for _ in 0..conf.height {
+            let mut x = x_start;
+            for _ in 0..conf.width {
+                let dir = Dir4 {
+                    x,
+                    y,
+                    z: 1.0,
+                    w: 0.0,
+                };
+                v.push(self.trace_stats(origin, dir, step_size));
+                x += x_step;
+            }
+            y += y_step;
+        }
+        v
+    }
+
+    // Trace a single ray, collecting stats.
+    fn trace_stats(&self, p: Point4, dir: Dir4, step_size: f64) -> TraceStats {
+        let delta = dir.norm().scale(step_size);
+        let mut p = self.project_vertical(p).unwrap();
+        let mut old_p = self.project_vertical(p.sub(delta)).unwrap();
+
+        while p.len() < self.infinity {
+            let delta = p.sub(old_p).norm().scale(step_size);
+            let norm = self.normal_at(p).norm();
+
+            if let Some(new_p) = self.step(p, delta, norm) {
+                (p, old_p) = (new_p, p);
+            } else {
+                panic!("trace_aux could not extend path");
+            }
+        }
+
+        TraceStats { dir: p.sub(old_p) }
     }
 }

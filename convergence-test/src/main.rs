@@ -33,8 +33,8 @@ fn main() {
         fov_degrees: 90.0,
     };
 
-    let tex_data = tracer.render(&conf, 0.0, 0.0, 0.0);
+    let trace_stats = tracer.render_stats(&conf, 0.01);
 
     // Avoid too much optimisation.
-    println!("{}", tex_data.len());
+    println!("{}", trace_stats.len());
 }
