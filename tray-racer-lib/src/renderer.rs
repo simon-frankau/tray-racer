@@ -200,7 +200,7 @@ impl Tracer {
             let delta = p.sub(old_p).norm().scale(RAY_STEP);
             let norm = self.normal_at(p).norm();
 
-            if let Some(new_p) = self.step(p, delta, norm) {
+            if let Some(new_p) = self.step(p, delta, norm, 0) {
                 (p, old_p) = (new_p, p);
             } else {
                 panic!("trace_aux could not extend path");
@@ -217,7 +217,7 @@ impl Tracer {
 
     // Take a step from p in direction delta, constrained to the
     // surface in direction norm.
-    fn step(&self, p: Point4, delta: Dir4, norm: Dir4) -> Option<Point4> {
+    fn step(&self, p: Point4, delta: Dir4, norm: Dir4, step_num: i32) -> Option<Point4> {
         let mut delta = delta;
         // If curvature is extreme, there may be no intersection,
         // because the normal at p and the normal at the intersection
@@ -230,7 +230,7 @@ impl Tracer {
         let mut new_p = None;
         let mut iter = 0;
         while new_p.is_none() && iter < MAX_ITER {
-            new_p = self.intersect_line(p.add(delta), norm);
+            new_p = self.intersect_line(p.add(delta), norm, step_num);
             delta = delta.scale(0.5);
             iter += 1;
         }
@@ -251,7 +251,7 @@ impl Tracer {
         x * x + y * y + z * z - w * w - self.radius
     }
 
-    fn intersect_line(&self, point: Point4, direction: Dir4) -> Option<Point4> {
+    fn intersect_line(&self, point: Point4, direction: Dir4, id: i32) -> Option<Point4> {
         // Newton-Raphson solver on dist(point + lambda direction)
         //
         // In practice, it's locally flat enough that a a single
@@ -259,10 +259,13 @@ impl Tracer {
         const MAX_ITER: usize = 10;
 
         let mut lambda = 0.0;
-        for _ in 0..MAX_ITER {
+        for iter in 0..MAX_ITER {
             let guess = point.add(direction.scale(lambda));
             let guess_val = self.dist(guess);
             if guess_val.abs() < EPSILON {
+                if iter > 2 {
+                    eprintln!("{} - {}", iter, id);
+                }
                 return Some(guess);
             }
 
@@ -277,6 +280,7 @@ impl Tracer {
         // Could fall back to binary chop, but as it generally seems
         // to converge in <= 2 iterations if there is a solution, this
         // seems excessive.
+        eprintln!("{} - {}", MAX_ITER, id);
         None
     }
 
@@ -289,7 +293,7 @@ impl Tracer {
             z: 0.0,
             w: 1.0,
         };
-        self.intersect_line(point, VERTICAL)
+        self.intersect_line(point, VERTICAL, -1)
     }
 
     // Calculate a normal vector using finite differences.
@@ -321,7 +325,6 @@ impl Tracer {
 // behaviour.
 //
 
-// TODO!
 #[derive(Debug)]
 pub struct TraceStats {
     pub step_dir: Dir4,
@@ -354,15 +357,16 @@ impl Tracer {
 
         let mut v = Vec::new();
         let mut y = y_start;
-        for _ in 0..conf.height {
+        for iy in 0..conf.height {
             let mut x = x_start;
-            for _ in 0..conf.width {
+            for ix in 0..conf.width {
                 let dir = Dir4 {
                     x,
                     y,
                     z: 1.0,
                     w: 0.0,
                 };
+                eprintln!("Ray ({},{})", ix, iy);
                 v.push(self.trace_stats(origin, dir, step_size));
                 x += x_step;
             }
@@ -377,42 +381,48 @@ impl Tracer {
         let mut p = self.project_vertical(p).unwrap();
         let mut old_p = self.project_vertical(p.sub(delta)).unwrap();
 
+        let mut i = 0;
         while p.len() < self.infinity {
             let delta = p.sub(old_p).norm().scale(step_size);
             let norm = self.normal_at(p).norm();
 
-            if let Some(new_p) = self.step(p, delta, norm) {
+            if let Some(new_p) = self.step(p, delta, norm, i) {
                 (p, old_p) = (new_p, p);
             } else {
                 panic!("trace_aux could not extend path");
             }
+            i += 1;
         }
 
-	let step_dir = p.sub(old_p);
-	let norm = self.normal_at(p).norm();
-	let deriv_dir = step_dir.sub(norm.scale(step_dir.dot(norm)));
-	let point = self.clip_to_radius(p, old_p);
+        let step_dir = p.sub(old_p);
+        let norm = self.normal_at(p).norm();
+        let deriv_dir = step_dir.sub(norm.scale(step_dir.dot(norm)));
+        let point = self.clip_to_radius(p, old_p);
 
-        TraceStats { step_dir, deriv_dir, point }
+        TraceStats {
+            step_dir,
+            deriv_dir,
+            point,
+        }
     }
 
     // Excessively precise way to clip the line to end on the given
     // radius, so that the clipping doesn't distort the error
     // calculation.
     fn clip_to_radius(&self, p: Point4, prev_p: Point4) -> Point4 {
-	// I <heart/> basic Newton-Raphson.
-	let delta = p.sub(prev_p);
-	let mut lambda = 0.0;
-	loop {
-	    let guess = prev_p.add(delta.scale(lambda));
-	    let radius_diff = guess.dot(guess) - self.infinity.powi(2);
-	    if radius_diff.abs() < EPSILON {
-		return guess;
-	    }
-	    // d radius / d lambda = d radius / d guess * d guess/ lambda
-	    let deriv = 2.0 * guess.dot(delta);
+        // I <heart/> basic Newton-Raphson.
+        let delta = p.sub(prev_p);
+        let mut lambda = 0.0;
+        loop {
+            let guess = prev_p.add(delta.scale(lambda));
+            let radius_diff = guess.dot(guess) - self.infinity.powi(2);
+            if radius_diff.abs() < EPSILON {
+                return guess;
+            }
+            // d radius / d lambda = d radius / d guess * d guess/ lambda
+            let deriv = 2.0 * guess.dot(delta);
 
-	    lambda -= radius_diff / deriv;
-	}
+            lambda -= radius_diff / deriv;
+        }
     }
 }

@@ -87,17 +87,58 @@ If we're to use a uniform step size, and the environment map is
 RAY_STEP value of 0.01, and it sounds like I could safely bump it up
 quite a bit.
 
+### Reduced step size and Newton-Raphson iterations
+
 On the other hand, I'm a bit suspicious, because 0.1 is a rather large
 step size when the wormhole radius is 0.1. I wonder if the automatic
 step-size-reduction code is helping out?
 
+(The step size is automatically reduced when the Newton-Raphson solver
+doesn't converge, as identified by taking more than 10 steps.)
+
+I hacked up a branch of the code to report on when paths required
+step-shortening to ensure convergence. Up to step size 0.032, no step
+halving was performed. For a step size of 0.064 (the largest the tests
+do), 280 paths out of 4096 required step shortening, 168 for a single
+step, and 112 for two steps. So, it's applied sparingly and only at
+the largest step size, and doesn't seem to be a major factor in
+convergence,
+
+Diving in further, and looking at how quickly the Newton-Raphson
+solver converges, at step size 0.016 everything converges in 2 or
+fewer steps. At step sizes 0.032 and 0.064:
+
+ * many rays take 3 iterations for some steps (specifically, those
+   near or that go through the wormhole),
+ * a tiny fraction of steps take 4 or 5 iterations, and
+ * a similar number of steps do not converge, requiring step size
+   reduction.
+
+No cases converge in 7-10 steps.
+
+(The cleaned-up output of this output, produced in the branch
+`step-stats` is in the file
+[step-convergence.log](./step-convergence.log).)
+
+Since the cases that require more iterations are ones that probably
+introduce more error, it looks like there's a case for step-splitting
+if convergence doesn't happen after e.g. 2 steps. This is going to be
+worth investigating after a quick investigation as to how step size
+affects visual quality.
+
+### Step size and visual quality
+
 **TODO: Experiment with step size empirically!**
 
-**TODO: Investigate whether the step size error stuff is really
-working as I think.**
+### Limiting Newton-Raphson iterations
+
+**TODO**
 
 ### Step-level analysis
 
 **TODO: In order to understand how error accumulates better, look at
 how the error accumulates on a per-step basis, and compare with
 curvature metrics. Is varying step size worth it?**
+
+Do we really need this if Newton-Raphson-convergence-based step size
+changing seems to do the job?
