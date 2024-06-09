@@ -321,7 +321,6 @@ impl Tracer {
 // behaviour.
 //
 
-// TODO!
 #[derive(Debug)]
 pub struct TraceStats {
     pub step_dir: Dir4,
