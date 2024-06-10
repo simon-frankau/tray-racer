@@ -10,7 +10,7 @@ use clap::Parser;
 use image::imageops::flip_vertical_in_place;
 use image::RgbaImage;
 
-use tray_racer_lib::{CanvasConfig, EnvMap, Tracer};
+use tray_racer_lib::{CanvasConfig, EnvMap, Tracer, RAY_STEP};
 
 ////////////////////////////////////////////////////////////////////////
 // Command-line args
@@ -32,6 +32,12 @@ struct Args {
     /// File to write the output to
     #[arg(short, long)]
     output: String,
+    /// Output image width
+    #[arg(short, long, default_value_t = 1024)]
+    width: usize,
+    /// Output image height
+    #[arg(short, long, default_value_t = 768)]
+    height: usize,
     /// Camera 'pitch', in degrees
     #[arg(long, default_value_t = 0.0)]
     tilt: f64,
@@ -54,18 +60,16 @@ struct Args {
     /// The 4-distance at which we assume no further curvature occurs
     #[arg(long, default_value_t = 4.0)]
     infinity: f64,
+    /// Path-tracing step size
+    #[arg(short, long, default_value_t = RAY_STEP)]
+    step_size: f64,
 }
 
 ////////////////////////////////////////////////////////////////////////
 // Main code.
 //
 
-const WIDTH: usize = 1024;
-const HEIGHT: usize = 768;
-
 /* TODO: Other configurable values:
-      image width
-      image height
       ray step size
 */
 
@@ -89,6 +93,11 @@ fn main() -> Result<()> {
         infinity,
     };
 
+    let width = args.width;
+    assert!(16 <= width && width <= 16384);
+    let height = args.height;
+    assert!(16 <= height && height <= 16384);
+
     let fov_degrees = args.fov;
     assert!(20.0 <= fov_degrees && fov_degrees <= 160.0);
     let tilt = args.tilt;
@@ -97,11 +106,13 @@ fn main() -> Result<()> {
     assert!(-180.0 <= turn && turn <= 180.0);
     let pan = args.pan;
     assert!(-180.0 <= pan && pan <= 180.0);
+    let step_size = args.step_size;
+    assert!(0.001 <= step_size && step_size <= 0.1);
 
     let raw_image = tracer.render(
         &CanvasConfig {
-            width: WIDTH,
-            height: HEIGHT,
+            width,
+            height,
             // When writing out an image, we'll always assume square pixels.
             aspect: 1.0,
             fov_degrees,
@@ -109,9 +120,10 @@ fn main() -> Result<()> {
         tilt,
         turn,
         pan,
+        step_size,
     );
 
-    let mut image = RgbaImage::from_raw(WIDTH as u32, HEIGHT as u32, raw_image)
+    let mut image = RgbaImage::from_raw(width as u32, height as u32, raw_image)
         .ok_or(anyhow!("Couldn't create image"))?;
     // OpenGL uses inverted vertical axis.
     flip_vertical_in_place(&mut image);

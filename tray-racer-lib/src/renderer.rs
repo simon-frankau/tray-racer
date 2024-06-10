@@ -93,7 +93,7 @@ impl EnvMap {
 //
 
 // Ray stepping size.
-const RAY_STEP: f64 = 0.01;
+pub const RAY_STEP: f64 = 0.01;
 
 pub struct Tracer {
     pub env_map_pos: EnvMap,
@@ -127,7 +127,14 @@ pub struct CanvasConfig {
 
 impl Tracer {
     // Render a whole scene by tracing all the rays in the canvas.
-    pub fn render(&self, conf: &CanvasConfig, tilt: f64, turn: f64, pan: f64) -> Vec<u8> {
+    pub fn render(
+        &self,
+        conf: &CanvasConfig,
+        tilt: f64,
+        turn: f64,
+        pan: f64,
+        step_size: f64,
+    ) -> Vec<u8> {
         let tilt_rad = -tilt * std::f64::consts::PI / 180.0;
         let tilt_cos = tilt_rad.cos();
         let tilt_sin = tilt_rad.sin();
@@ -182,7 +189,7 @@ impl Tracer {
                     w: 0.0,
                 };
 
-                v.extend(self.trace(origin, dir));
+                v.extend(self.trace(origin, dir, step_size));
                 x += x_step;
             }
             y += y_step;
@@ -191,13 +198,13 @@ impl Tracer {
     }
 
     // Trace a single ray.
-    fn trace(&self, p: Point4, dir: Dir4) -> Pixel {
-        let delta = dir.norm().scale(RAY_STEP);
+    fn trace(&self, p: Point4, dir: Dir4, step_size: f64) -> Pixel {
+        let delta = dir.norm().scale(step_size);
         let mut p = self.project_vertical(p).unwrap();
         let mut old_p = self.project_vertical(p.sub(delta)).unwrap();
 
         while p.len() < self.infinity {
-            let delta = p.sub(old_p).norm().scale(RAY_STEP);
+            let delta = p.sub(old_p).norm().scale(step_size);
             let norm = self.normal_at(p).norm();
 
             if let Some(new_p) = self.step(p, delta, norm) {
