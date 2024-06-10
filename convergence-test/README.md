@@ -41,6 +41,10 @@ behaves.
 
 ## First practical results
 
+*I've tweaked the algorithms as a result of these analyses. As such,
+if you're trying to reproduce these numbers, use a version at
+`1ad2f40` or before.*
+
 My theory was *totally* wrong! I'm keeping in the text above as an
 example of my hubris. :p
 
@@ -165,10 +169,23 @@ small enough step size on the tricky cases.
 
 ### Limiting Newton-Raphson iterations
 
-**TODO: Too many steps to find the intersection point during a step
-suggests the step size might be too large. Do we get better results if
-we reduce the max NR iterations and just more readily reduce the step
-size?**
+If the vast majority of rays converge in 0-2 Newton-Raphson
+iterations, maybe those that take more iterations to complete are the
+ones contributing most to error? I tried limiting the iterations on
+path steps to 0-2 and visually inspected the results for different
+step sizes. Performance was pretty much the same as the base case. As
+before, some visual distortion was seen at step size 0.02 (0.01 looked
+ok), but unlike before, for larger step sizes the image quality didn't
+degrade further. It looks like this heuristic *does* detect and
+correct for steps that accumulate too much error, but at a scale large
+enough to cause visual degradation.
+
+Interestingly, while the visual quality at large step sizes is better,
+the stats do not improve:
+
+| Step size                | 0.002       | 0.004       | 0.008       | 0.016       | 0.032       | 0.064       |
+| Max error / median error | 3.381478643 | 2.259884166 | 7.781941461 | 19.01173447 | 68.43652523 | 338.2307236 |
+| % errors > 5x median     | 0.00%       | 0.00%       | 0.68%       | 20.02%      | 25.98%      | 27.54%      |
 
 ### Step-level analysis
 

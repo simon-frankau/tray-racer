@@ -237,7 +237,10 @@ impl Tracer {
         let mut new_p = None;
         let mut iter = 0;
         while new_p.is_none() && iter < MAX_ITER {
-            new_p = self.intersect_line(p.add(delta), norm);
+            // If it takes too many iterations, we're probably best
+            // off taking a smaller step, so set the Newton-Raphson
+            // convergence iterations low.
+            new_p = self.intersect_line(p.add(delta), norm, 3);
             delta = delta.scale(0.5);
             iter += 1;
         }
@@ -258,15 +261,10 @@ impl Tracer {
         x * x + y * y + z * z - w * w - self.radius
     }
 
-    fn intersect_line(&self, point: Point4, direction: Dir4) -> Option<Point4> {
+    fn intersect_line(&self, point: Point4, direction: Dir4, max_iters: usize) -> Option<Point4> {
         // Newton-Raphson solver on dist(point + lambda direction)
-        //
-        // In practice, it's locally flat enough that a a single
-        // iteration seems to suffice.
-        const MAX_ITER: usize = 10;
-
         let mut lambda = 0.0;
-        for _ in 0..MAX_ITER {
+        for _ in 0..max_iters {
             let guess = point.add(direction.scale(lambda));
             let guess_val = self.dist(guess);
             if guess_val.abs() < EPSILON {
@@ -296,7 +294,9 @@ impl Tracer {
             z: 0.0,
             w: 1.0,
         };
-        self.intersect_line(point, VERTICAL)
+        // Plenty of iterations to converge, since the starting point
+        // may be far from the intersection.
+        self.intersect_line(point, VERTICAL, 10)
     }
 
     // Calculate a normal vector using finite differences.
