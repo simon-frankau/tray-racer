@@ -2,6 +2,6 @@
 
 resolver = "2"
 
-members = [ "convergence-test",
+members = [ "convergence-test", "tray-racer-cli",
     "tray-racer-app", "tray-racer-lib",
 ]

@@ -1,0 +1,13 @@
+[package]
+name = "tray-racer-cli"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tray-racer-lib = { path = "../tray-racer-lib" }
+
+anyhow = "*"
+clap = { version = "4.5.4", features = ["derive"] }
+image = "0.25"

@@ -2003,6 +2003,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tray-racer-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "image",
+ "tray-racer-lib",
+]
+
+[[package]]
 name = "tray-racer-lib"
 version = "0.1.0"
 dependencies = [
