@@ -128,17 +128,53 @@ affects visual quality.
 
 ### Step size and visual quality
 
-**TODO: Experiment with step size empirically!**
+I then did some empirical tests, comparing the output of various step
+sizes from 0.001 to 0.08 when rendering a 1024x768 image, 90 degree
+field of view:
+
+```
+for SIZE in 0.001 0.002 0.004 0.008 0.01 0.02 0.04 0.08
+    do time cargo run --release --bin tray-racer-cli -- -s $SIZE -o step-${SIZE}.png
+done
+```
+
+The fine detail of what's visible through the wormhole seems to be the
+most visibly sensitive part, and looks pretty consistent up to
+0.01. With a step size beyond that, it begins to distort.
+
+How do I square this with "the error is 1/100th of the step size", the
+approximation of error I found earlier?
+
+Going back to the original data, and looking at the full range of
+data, including outliers, we see that at each step size most paths are
+converged, but there are a few outliers with much bigger errors than
+the other rays. As the step size increases, the number of outliers and
+the size of the error compared to the median increases:
+
+| Step size                | 0.02        | 0.04        | 0.08        | 0.16        | 0.32       | 0.64        |
+| Max error / median error | 3.381478643 | 2.259884166 | 7.781941461 | 19.01173447 | 42.7861627 | 497.8668368 |
+| % errors > 5x median     | 0.00%       | 0.00%       | 0.68%       | 20.02%      | 25.20%     | 28.61%      |
+
+It now becomes obvious that the key is to make sure we set step sizes
+to ensures that the tail of the *distribution* of errors isn't too
+long and fat - that the rendering has to make the trickiest paths look
+right, not just the common case. In turn, this suggests we need
+adaptive step sizes, since we don't want to waste time on tiny steps
+on the common case where it's not needed, in order to ensure we get a
+small enough step size on the tricky cases.
 
 ### Limiting Newton-Raphson iterations
 
-**TODO**
+**TODO: Too many steps to find the intersection point during a step
+suggests the step size might be too large. Do we get better results if
+we reduce the max NR iterations and just more readily reduce the step
+size?**
 
 ### Step-level analysis
 
-**TODO: In order to understand how error accumulates better, look at
-how the error accumulates on a per-step basis, and compare with
-curvature metrics. Is varying step size worth it?**
+**TODO: Somehow we need to adapt the step size with error
+contribution, which in turn is probably related to curvature. How best
+to achieve this?**
 
 Do we really need this if Newton-Raphson-convergence-based step size
 changing seems to do the job?
