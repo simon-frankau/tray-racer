@@ -44,6 +44,16 @@ struct Args {
     /// Horizontal camera field of view, in degrees
     #[arg(long, default_value_t = 90.0)]
     fov: f64,
+    /// Wormhole radius
+    #[arg(long, default_value_t = 0.1)]
+    radius: f64,
+    /// How smooth the curve between sides of the wormhole are - width
+    /// of the wormhole in the fourth dimension
+    #[arg(long, default_value_t = 0.25)]
+    smoothness: f64,
+    /// The 4-distance at which we assume no further curvature occurs
+    #[arg(long, default_value_t = 4.0)]
+    infinity: f64,
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -53,11 +63,7 @@ struct Args {
 const WIDTH: usize = 1024;
 const HEIGHT: usize = 768;
 
-/* TODO: Check ranges on inputs
-           .add(egui::Slider::new(&mut self.tracer.radius, -1.0..=1.0).text("Wormhole radius"))
-           .add(egui::Slider::new(&mut self.tracer.w_scale, 0.1..=1.0).text("Smoothness"))
-           .add(egui::Slider::new(&mut self.tracer.infinity, 1.0..=10.0).text("Infinity"))
-   Other configurable values:
+/* TODO: Other configurable values:
       image width
       image height
       ray step size
@@ -65,19 +71,26 @@ const HEIGHT: usize = 768;
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    
+
     let env_map_pos = EnvMap::from(Path::new(&args.env_map_pos))?;
     let env_map_neg = EnvMap::from(Path::new(&args.env_map_neg))?;
+    let w_scale = args.smoothness;
+    assert!(0.1 <= w_scale && w_scale <= 1.0);
+    let radius = args.radius;
+    assert!(-1.0 <= radius && radius <= 1.0);
+    let infinity = args.infinity;
+    assert!(1.0 <= infinity && infinity <= 10.0);
+
     let tracer = Tracer {
         env_map_pos,
         env_map_neg,
-        w_scale: 0.25,
-        radius: 0.1,
-        infinity: 4.0,
+        w_scale,
+        radius,
+        infinity,
     };
 
-    let fov = args.fov;
-    assert!(20.0 <= fov && fov <= 160.0);
+    let fov_degrees = args.fov;
+    assert!(20.0 <= fov_degrees && fov_degrees <= 160.0);
     let tilt = args.tilt;
     assert!(-90.0 <= tilt && tilt <= 90.0);
     let turn = args.turn;
@@ -89,9 +102,9 @@ fn main() -> Result<()> {
         &CanvasConfig {
             width: WIDTH,
             height: HEIGHT,
-	    // When writing out an image, we'll always assume square pixels.
+            // When writing out an image, we'll always assume square pixels.
             aspect: 1.0,
-            fov_degrees: fov,
+            fov_degrees,
         },
         tilt,
         turn,
