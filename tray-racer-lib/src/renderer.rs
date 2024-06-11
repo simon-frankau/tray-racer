@@ -324,12 +324,12 @@ impl Tracer {
 }
 
 ////////////////////////////////////////////////////////////////////////
-// Renderer that returns ray stats, for understanding convergence
-// behaviour.
+// Renderer that returns ray-level stats, for understanding
+// convergence behaviour.
 //
 
 #[derive(Debug)]
-pub struct TraceStats {
+pub struct RayStats {
     pub step_dir: Dir4,
     pub deriv_dir: Dir4,
     pub point: Dir4,
@@ -337,7 +337,7 @@ pub struct TraceStats {
 
 impl Tracer {
     // Render a whole scene by tracing all the rays in the canvas.
-    pub fn render_stats(&self, conf: &CanvasConfig, step_size: f64) -> Vec<TraceStats> {
+    pub fn render_ray_stats(&self, conf: &CanvasConfig, step_size: f64) -> Vec<RayStats> {
         let fov_rad = conf.fov_degrees * std::f64::consts::PI / 180.0;
         let fov = (fov_rad * 0.5).tan();
 
@@ -369,7 +369,7 @@ impl Tracer {
                     z: 1.0,
                     w: 0.0,
                 };
-                v.push(self.trace_stats(origin, dir, step_size));
+                v.push(self.trace_ray_stats(origin, dir, step_size));
                 x += x_step;
             }
             y += y_step;
@@ -378,7 +378,7 @@ impl Tracer {
     }
 
     // Trace a single ray, collecting stats.
-    fn trace_stats(&self, p: Point4, dir: Dir4, step_size: f64) -> TraceStats {
+    fn trace_ray_stats(&self, p: Point4, dir: Dir4, step_size: f64) -> RayStats {
         let delta = dir.norm().scale(step_size);
         let mut p = self.project_vertical(p).unwrap();
         let mut old_p = self.project_vertical(p.sub(delta)).unwrap();
@@ -399,7 +399,7 @@ impl Tracer {
         let deriv_dir = step_dir.sub(norm.scale(step_dir.dot(norm)));
         let point = self.clip_to_radius(p, old_p);
 
-        TraceStats {
+        RayStats {
             step_dir,
             deriv_dir,
             point,
@@ -424,5 +424,89 @@ impl Tracer {
 
             lambda -= radius_diff / deriv;
         }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////
+// Renderer that returns step-level stats, for further understanding
+// convergence behaviour.
+//
+
+#[derive(Debug)]
+pub struct StepStats {
+    pub step_num: usize,
+    pub len: f64,
+    // TODO: Error and curvature.
+}
+
+impl Tracer {
+    // Render a whole scene by tracing all the rays in the canvas.
+    pub fn render_step_stats(&self, conf: &CanvasConfig, step_size: f64) -> Vec<StepStats> {
+        let fov_rad = conf.fov_degrees * std::f64::consts::PI / 180.0;
+        let fov = (fov_rad * 0.5).tan();
+
+        // Invariants: start + step * (size - 1)/2 = 0.
+        let x_range = fov * 2.0;
+        let x_step = -x_range / conf.width as f64;
+        let x_start = -0.5 * x_step * (conf.width - 1) as f64;
+
+        let y_range = x_range * conf.aspect * conf.height as f64 / conf.width as f64;
+        let y_step = -y_range / conf.height as f64;
+        let y_start = -0.5 * y_step * (conf.height - 1) as f64;
+
+        // Set the camera position.
+        let origin = Point4 {
+            x: 0.0,
+            y: 0.0,
+            z: -1.0,
+            w: 1.0,
+        };
+
+        let mut v = Vec::new();
+        let mut y = y_start;
+        for _ in 0..conf.height {
+            let mut x = x_start;
+            for _ in 0..conf.width {
+                let dir = Dir4 {
+                    x,
+                    y,
+                    z: 1.0,
+                    w: 0.0,
+                };
+                v.append(&mut self.trace_step_stats(origin, dir, step_size));
+                x += x_step;
+            }
+            y += y_step;
+        }
+        v
+    }
+
+    // Trace a single ray, collecting stats.
+    fn trace_step_stats(&self, p: Point4, dir: Dir4, step_size: f64) -> Vec<StepStats> {
+        let mut stats = Vec::new();
+
+        let delta = dir.norm().scale(step_size);
+        let mut p = self.project_vertical(p).unwrap();
+        let mut old_p = self.project_vertical(p.sub(delta)).unwrap();
+
+        let mut step_num = 0;
+        while p.len() < self.infinity {
+            let delta = p.sub(old_p).norm().scale(step_size);
+            let norm = self.normal_at(p).norm();
+
+            if let Some(new_p) = self.step(p, delta, norm) {
+                (p, old_p) = (new_p, p);
+            } else {
+                panic!("trace_aux could not extend path");
+            }
+
+            stats.push(StepStats {
+                step_num,
+                len: p.sub(old_p).len(),
+            });
+            step_num += 1;
+        }
+
+        stats
     }
 }

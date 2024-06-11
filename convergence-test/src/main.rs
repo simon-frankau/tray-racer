@@ -3,7 +3,7 @@
 // practically understand the convergence properties.
 //
 
-use clap::{Parser, ValueEnum};
+use clap::{Parser, Subcommand, ValueEnum};
 
 use tray_racer_lib::vec4::*;
 use tray_racer_lib::{CanvasConfig, EnvMap, Tracer};
@@ -37,32 +37,60 @@ enum Value {
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// What analysis to do on the calculated values.
-    #[arg(short, long, value_enum, default_value_t = ResultFormat::Errors)]
-    output_mode: ResultFormat,
-    /// The value to collect.
-    #[arg(short, long, value_enum, default_value_t = Value::StepDir)]
-    value: Value,
+    #[command(subcommand)]
+    command: Command,
+}
+
+#[derive(Subcommand, Debug)]
+enum Command {
+    /// Path-level analysis.
+    Path {
+        /// What analysis to do on the calculated values.
+        #[arg(short, long, value_enum, default_value_t = ResultFormat::Errors)]
+        output_mode: ResultFormat,
+        /// The value to collect.
+        #[arg(short, long, value_enum, default_value_t = Value::StepDir)]
+        value: Value,
+    },
+    /// Step-level (sub-path-level) analysis.
+    Step {
+        // Step size
+        #[arg(short, long, default_value_t = 0.01)]
+        step_size: f64,
+    },
 }
 
 fn main() {
     let args = Args::parse();
 
-    let tracer = Tracer {
+    match args.command {
+        Command::Path { output_mode, value } => path_stats(output_mode, value),
+        Command::Step { step_size } => step_stats(step_size),
+    }
+}
+
+fn default_tracer() -> Tracer {
+    Tracer {
         env_map_pos: EnvMap::new(),
         env_map_neg: EnvMap::new(),
         w_scale: 0.25,
         radius: 0.25,
         infinity: 4.0,
-    };
+    }
+}
 
-    let conf = CanvasConfig {
+fn default_canvas_conf() -> CanvasConfig {
+    CanvasConfig {
         width: RESOLUTION,
         height: RESOLUTION,
         aspect: 1.0,
         fov_degrees: 90.0,
-    };
+    }
+}
 
+fn path_stats(output_mode: ResultFormat, value: Value) {
+    let tracer = default_tracer();
+    let conf = default_canvas_conf();
     // Find the result direction vectors for various step sizes (grouped by path).
     let mut results = (0..RESOLUTION.pow(2))
         .map(|_| Vec::new())
@@ -70,8 +98,8 @@ fn main() {
     let mut size = MIN_SIZE;
     for _ in 0..STEPS {
         eprintln!("Step size: {}", size);
-        let step_result = tracer.render_stats(&conf, size);
-        for (path_results, path_result) in results.iter_mut().zip(step_result.into_iter()) {
+        let scene_result = tracer.render_ray_stats(&conf, size);
+        for (path_results, path_result) in results.iter_mut().zip(scene_result.into_iter()) {
             path_results.push(path_result);
         }
         size *= SCALE;
@@ -82,7 +110,7 @@ fn main() {
         .iter()
         .map(|v| {
             v.iter()
-                .map(|result| match args.value {
+                .map(|result| match value {
                     Value::StepDir => result.step_dir,
                     Value::DerivDir => result.deriv_dir,
                     Value::Point => result.point,
@@ -118,7 +146,7 @@ fn main() {
 
     let ratios = errors.iter().map(get_ratios).collect::<Vec<_>>();
 
-    match args.output_mode {
+    match output_mode {
         ResultFormat::Errors => display(&errors),
         ResultFormat::Ratios => display(&ratios),
     }
@@ -134,5 +162,17 @@ fn display(results: &[Vec<f64>]) {
                 .collect::<Vec<_>>()
                 .join(",")
         );
+    }
+}
+
+fn step_stats(step_size: f64) {
+    assert!(0.001 <= step_size && step_size <= 0.1);
+
+    let tracer = default_tracer();
+    let conf = default_canvas_conf();
+    let results = tracer.render_step_stats(&conf, step_size);
+
+    for result in results.iter() {
+        println!("{},{}", result.step_num, result.len);
     }
 }

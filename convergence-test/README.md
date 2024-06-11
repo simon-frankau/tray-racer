@@ -189,9 +189,15 @@ the stats do not improve:
 
 ### Step-level analysis
 
+The experiment tweaking Newton-Raphson iterations shows that adapting
+step size *can* control the error while allowing the base step size to
+be larger, but it looks like we'll need a better per-step error metric
+or heuristic in order to keep the error below the visible level with
+larger step sizes.
+
+To work this out, we'll calculate *per step* error information, rather
+than per path information.
+
 **TODO: Somehow we need to adapt the step size with error
 contribution, which in turn is probably related to curvature. How best
 to achieve this?**
-
-Do we really need this if Newton-Raphson-convergence-based step size
-changing seems to do the job?
