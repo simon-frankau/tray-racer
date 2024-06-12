@@ -343,12 +343,12 @@ impl Tracer {
         let mut step_size = BASE_ADAPTIVE_STEP;
         let delta = dir.norm().scale(step_size);
         let mut p = self.project_vertical(p).unwrap();
+        let mut norm = self.normal_at(p).norm();
         let mut old_p = self.project_vertical(p.sub(delta)).unwrap();
 
         while p.len() < self.infinity {
             let delta = p.sub(old_p).norm();
-            let norm = self.normal_at(p).norm();
-            (p, old_p) = (self.step_adaptive(p, delta, norm, &mut step_size), p);
+            ((p, norm), old_p) = (self.step_adaptive(p, delta, norm, &mut step_size), p);
         }
 
         let final_dir = p.sub(old_p);
@@ -361,57 +361,35 @@ impl Tracer {
 
     // Take a step from p in direction delta, constrained to the
     // surface in direction norm.
-    fn step_adaptive(&self, p: Point4, delta: Dir4, norm: Dir4, step_size: &mut f64) -> Point4 {
-        let mut delta = delta.scale(*step_size);
-        // If curvature is extreme, there may be no intersection,
-        // because the normal at p and the normal at the intersection
-        // point are sufficiently different. We try again with a
-        // smaller step.
-        //
-        // An example of extreme curvature is the "wormhole" surface
-        // with w_scale around e.g. 0.01.
-        const MAX_ITER: usize = 8;
-        let mut new_p = None;
-        let mut iter = 0;
-        while new_p.is_none() && iter < MAX_ITER {
-            // If it takes too many iterations, we're probably best
-            // off taking a smaller step, so set the Newton-Raphson
-            // convergence iterations low.
-            new_p = self.intersect_line_adaptive(p.add(delta), norm, 3);
-            delta = delta.scale(0.5);
-            iter += 1;
-        }
+    fn step_adaptive(
+        &self,
+        p: Point4,
+        delta: Dir4,
+        norm: Dir4,
+        step_size: &mut f64,
+    ) -> (Point4, Dir4) {
+        let delta = delta.scale(*step_size);
+        let base = p.add(delta);
+        let (projection, new_p) = self.intersect_line_adaptive(base, norm);
 
         // Now, calculate the next step size.
-        if let Some((projection, new_p)) = new_p {
-            // Calculate the target step size.
-            let actual_norm_diff = {
-                // TODO: Could share this normal calculation with the outer loop?
-                let new_norm = self.normal_at(new_p).norm();
-                let other_p_base = p.add(delta.scale(2.0)); // Undo that delta-scaling in the loop.
-                let other_p = other_p_base.add(new_norm.scale(projection));
-                new_p.sub(other_p).len() / *step_size
-            };
-            *step_size = (*step_size * TARGET_NORM_DIFF / actual_norm_diff).min(MAX_ADAPTIVE_STEP);
-            new_p
-        } else {
-            panic!("step_adaptive could not extend path");
-        }
+        let new_norm = self.normal_at(new_p).norm();
+        let other_p = base.add(new_norm.scale(projection));
+        let actual_norm_diff = new_p.sub(other_p).len() / *step_size;
+        *step_size = (*step_size * TARGET_NORM_DIFF / actual_norm_diff).min(MAX_ADAPTIVE_STEP);
+
+        (new_p, new_norm)
     }
 
-    fn intersect_line_adaptive(
-        &self,
-        point: Point4,
-        direction: Dir4,
-        max_iters: usize,
-    ) -> Option<(f64, Point4)> {
+    fn intersect_line_adaptive(&self, point: Point4, direction: Dir4) -> (f64, Point4) {
         // Newton-Raphson solver on dist(point + lambda direction)
+        const MAX_ITERS: usize = 3;
         let mut lambda = 0.0;
-        for _ in 0..max_iters {
+        for _ in 0..MAX_ITERS {
             let guess = point.add(direction.scale(lambda));
             let guess_val = self.dist(guess);
             if guess_val.abs() < EPSILON {
-                return Some((lambda, guess));
+                return (lambda, guess);
             }
 
             let guess2 = point.add(direction.scale(lambda + EPSILON));
@@ -422,10 +400,7 @@ impl Tracer {
             lambda -= guess_val / dguess_val;
         }
 
-        // Could fall back to binary chop, but as it generally seems
-        // to converge in <= 2 iterations if there is a solution, this
-        // seems excessive.
-        None
+        panic!("step_adaptive could not extend path");
     }
 }
 
