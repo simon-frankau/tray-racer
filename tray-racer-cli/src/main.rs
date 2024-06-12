@@ -10,7 +10,7 @@ use clap::Parser;
 use image::imageops::flip_vertical_in_place;
 use image::RgbaImage;
 
-use tray_racer_lib::{CanvasConfig, EnvMap, Tracer, RAY_STEP};
+use tray_racer_lib::{CanvasConfig, EnvMap, Tracer};
 
 ////////////////////////////////////////////////////////////////////////
 // Command-line args
@@ -61,17 +61,13 @@ struct Args {
     #[arg(long, default_value_t = 4.0)]
     infinity: f64,
     /// Path-tracing step size
-    #[arg(short, long, default_value_t = RAY_STEP)]
-    step_size: f64,
+    #[arg(short, long)]
+    step_size: Option<f64>,
 }
 
 ////////////////////////////////////////////////////////////////////////
 // Main code.
 //
-
-/* TODO: Other configurable values:
-      ray step size
-*/
 
 fn main() -> Result<()> {
     let args = Args::parse();
@@ -107,7 +103,9 @@ fn main() -> Result<()> {
     let pan = args.pan;
     assert!(-180.0 <= pan && pan <= 180.0);
     let step_size = args.step_size;
-    assert!(0.001 <= step_size && step_size <= 0.1);
+    if let Some(step_size) = step_size {
+        assert!(0.001 <= step_size && step_size <= 0.1);
+    }
 
     let raw_image = tracer.render(
         &CanvasConfig {

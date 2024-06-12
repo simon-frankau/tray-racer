@@ -156,6 +156,7 @@ the other rays. As the step size increases, the number of outliers and
 the size of the error compared to the median increases:
 
 | Step size                | 0.02        | 0.04        | 0.08        | 0.16        | 0.32       | 0.64        |
+|--------------------------|-------------|-------------|-------------|-------------|------------|-------------|
 | Max error / median error | 3.381478643 | 2.259884166 | 7.781941461 | 19.01173447 | 42.7861627 | 497.8668368 |
 | % errors > 5x median     | 0.00%       | 0.00%       | 0.68%       | 20.02%      | 25.20%     | 28.61%      |
 
@@ -183,9 +184,9 @@ enough to cause visual degradation.
 Interestingly, while the visual quality at large step sizes is better,
 the stats do not improve:
 
-| Step size                | 0.002       | 0.004       | 0.008       | 0.016       | 0.032       | 0.064       |
-| Max error / median error | 3.381478643 | 2.259884166 | 7.781941461 | 19.01173447 | 68.43652523 | 338.2307236 |
-| % errors > 5x median     | 0.00%       | 0.00%       | 0.68%       | 20.02%      | 25.98%      | 27.54%      |
+| Step size            | 0.002 | 0.004 | 0.008 | 0.016  | 0.032  | 0.064  |
+|----------------------|-------|-------|-------|--------|--------|--------|
+| % errors > 5x median | 0.00% | 0.00% | 0.68% | 20.02% | 25.98% | 27.54% |
 
 ### Step-level analysis
 
@@ -254,11 +255,11 @@ $ wc -l step-stats-0.01.csv
 $ sort -g -t , -k 5 step-stats-0.01.csv | awk 'NR == 1 || NR % 1000 == 0' > ss-0.01.csv
 $ sort -g -t , -k 5 step-stats-0.02.csv | awk 'NR == 1 || NR % 500 == 0' > ss-0.02.csv
 $ sort -g -t , -k 5 step-stats-0.04.csv | awk 'NR == 1 || NR % 250 == 0' > ss-0.04.csv
-$ sort -g -t , -k 5 step-stats-0.08.csv | awk 'NR == 1 || NR % 125 == 0' > ss-0.08.csv 
+$ sort -g -t , -k 5 step-stats-0.08.csv | awk 'NR == 1 || NR % 125 == 0' > ss-0.08.csv
 $ python3 graph-step-stats.py
 ```
 
-The generated graph shows that the relationship between the proxy and
+the generated graph shows that the relationship between the proxy and
 the actual error is pretty consistent across step sizes:
 
 ![Mostly linear graph of normal distance vs. step size](./error.png)
@@ -268,3 +269,11 @@ source of error that contributes (the second line on the left of the
 graph), but this is below the error-per-distance we care about of
 1.0e-5. As long as the proxy value is below about 1.0e-4, the error
 should be sufficiently small.
+
+## What now?
+
+Given this, I've implemented adaptive step sizing (fixed step sizing
+is now only used if you ask for it), and the visual results look good
+to me, while render time has sped up around three-fold.
+
+I'm sure there are other tweaks I can do, but this is good for now.
