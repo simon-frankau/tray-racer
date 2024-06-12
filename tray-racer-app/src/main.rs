@@ -547,7 +547,7 @@ impl Drawable {
                 tex,
                 fov: 90.0,
                 fast_draw: false,
-                upscaling: 4,
+                upscaling: 2,
             };
             drawable.rebuild_tex(gl);
             drawable

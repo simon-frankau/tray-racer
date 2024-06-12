@@ -5,6 +5,7 @@
 use std::path::Path;
 
 use anyhow::Result;
+use rayon::prelude::*;
 
 use crate::vec4::*;
 
@@ -166,9 +167,8 @@ impl Tracer {
             w: 1.0,
         };
 
-        let mut v = Vec::new();
-        let mut y = y_start;
-        for _ in 0..conf.height {
+        let render_row = |y: f64| {
+            let mut v = Vec::new();
             let mut x = x_start;
             for _ in 0..conf.width {
                 let z = 1.0;
@@ -196,9 +196,14 @@ impl Tracer {
                 });
                 x += x_step;
             }
-            y += y_step;
-        }
-        v
+            v
+        };
+
+        (0..conf.height)
+            .into_par_iter()
+            .map(|y| render_row(y_start + y as f64 * y_step))
+            .flatten()
+            .collect::<Vec<u8>>()
     }
 
     // Trace a single ray.

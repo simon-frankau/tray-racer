@@ -10,10 +10,12 @@ https://github.com/simon-frankau/curved-spaces/ .
 
 ## TODO
 
-At this stage, everything! Simple initial steps are:
+The basic stuff works pretty well now, and I even have adaptive
+step-sizing. What I would like to do is be able to create an animation
+of passing through the wormhole, though.
 
- * Complete software environment mapping.
- * Start tracing rays into the environment map...
+Once it works nicely, I should probably document how to run this
+thing, too!
 
 ## Design choices
 
@@ -66,6 +68,10 @@ people who think about this as I do. Good luck!
 
 None of these goals are bad goals, but I have very little energy right
 now, and want to keep it focused on simply making it do the basics.
+
+**Note:** Yes, I have improved performance by using Rayon to
+parallelise the main rendering, going against my non-goals. It was,
+however, cheap and easy to do!
 
 ## Environment maps
 
