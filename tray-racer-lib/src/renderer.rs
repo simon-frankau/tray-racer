@@ -333,6 +333,7 @@ pub struct RayStats {
     pub step_dir: Dir4,
     pub deriv_dir: Dir4,
     pub point: Dir4,
+    pub len: f64,
 }
 
 impl Tracer {
@@ -383,6 +384,7 @@ impl Tracer {
         let mut p = self.project_vertical(p).unwrap();
         let mut old_p = self.project_vertical(p.sub(delta)).unwrap();
 
+        let mut len = 0.0;
         while p.len() < self.infinity {
             let delta = p.sub(old_p).norm().scale(step_size);
             let norm = self.normal_at(p).norm();
@@ -392,6 +394,8 @@ impl Tracer {
             } else {
                 panic!("trace_aux could not extend path");
             }
+
+            len += p.sub(old_p).len();
         }
 
         let step_dir = p.sub(old_p);
@@ -403,6 +407,7 @@ impl Tracer {
             step_dir,
             deriv_dir,
             point,
+            len,
         }
     }
 
@@ -436,8 +441,15 @@ impl Tracer {
 pub struct StepStats {
     pub step_num: usize,
     pub len: f64,
-    // TODO: Error and curvature.
+    pub error: f64,
+    pub curvature: f64,
+    pub dcurve: f64,
+    pub norm_diff: f64,
 }
+
+// Number of sub-steps per step to get the 'accurate' alternative to
+// calculate error with.
+const TRACE_STEP_MULT: usize = 10;
 
 impl Tracer {
     // Render a whole scene by tracing all the rays in the canvas.
@@ -488,21 +500,65 @@ impl Tracer {
         let delta = dir.norm().scale(step_size);
         let mut p = self.project_vertical(p).unwrap();
         let mut old_p = self.project_vertical(p.sub(delta)).unwrap();
+        let mut old_norm = self.normal_at(old_p).scale(EPSILON.recip());
 
         let mut step_num = 0;
         while p.len() < self.infinity {
             let delta = p.sub(old_p).norm().scale(step_size);
-            let norm = self.normal_at(p).norm();
+            let norm = self.normal_at(p).scale(EPSILON.recip());
+            let nnorm = norm.norm();
 
-            if let Some(new_p) = self.step(p, delta, norm) {
+            let (saved_p, saved_old_p) = (p, old_p);
+
+            if let Some(new_p) = self.step(p, delta, nnorm) {
                 (p, old_p) = (new_p, p);
             } else {
                 panic!("trace_aux could not extend path");
             }
 
+            let len = p.sub(old_p).len();
+
+            // And do a more accurate step to compare with.
+            let alt_p = {
+                let (mut p, mut old_p) = (saved_p, saved_old_p);
+                let step_size = step_size / TRACE_STEP_MULT as f64;
+                for _ in 0..TRACE_STEP_MULT {
+                    let delta = p.sub(old_p).norm().scale(step_size);
+                    let nnorm = self.normal_at(p).norm();
+
+                    if let Some(new_p) = self.step(p, delta, nnorm) {
+                        (p, old_p) = (new_p, p);
+                    } else {
+                        panic!("trace_step_stats could not extend path");
+                    }
+                }
+                p
+            };
+            let error = p.sub(alt_p).len() / len;
+
+            // And find the curvatature, as how far the new point is
+            // away from the old one (normalised), in the direction of
+            // the normal.
+            let curvature = p.sub(old_p).norm().dot(norm) / len;
+
+            // Find the change in curvature over the step.
+            let dcurve = old_norm.sub(norm).len() / len;
+            old_norm = norm;
+
+            // Find difference in projection based on normal.
+            let new_norm = self.normal_at(p).norm();
+            let other_p_base = old_p.add(delta);
+            let projection = nnorm.dot(p.sub(other_p_base));
+            let other_p = other_p_base.add(new_norm.scale(projection));
+            let norm_diff = p.sub(other_p).len() / len;
+
             stats.push(StepStats {
                 step_num,
-                len: p.sub(old_p).len(),
+                len,
+                error,
+                curvature,
+                dcurve,
+                norm_diff,
             });
             step_num += 1;
         }

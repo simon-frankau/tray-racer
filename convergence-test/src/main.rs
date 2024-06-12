@@ -29,6 +29,18 @@ enum Value {
     DerivDir,
     /// Observe the end point.
     Point,
+    /// Observe the path length.
+    PathLen,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+enum Proxy {
+    /// Curvature per unit length.
+    Curve,
+    /// Derivative of curvature.
+    Deriv,
+    /// Movement of end point caused by changing normal used.
+    NormMvmt,
 }
 
 /// Program to generate data to understand how the finite-difference
@@ -54,9 +66,11 @@ enum Command {
     },
     /// Step-level (sub-path-level) analysis.
     Step {
-        // Step size
+        /// Step size.
         #[arg(short, long, default_value_t = 0.01)]
         step_size: f64,
+        /// Error proxies to emit.
+        proxies: Vec<Proxy>,
     },
 }
 
@@ -65,7 +79,7 @@ fn main() {
 
     match args.command {
         Command::Path { output_mode, value } => path_stats(output_mode, value),
-        Command::Step { step_size } => step_stats(step_size),
+        Command::Step { step_size, proxies } => step_stats(step_size, &proxies),
     }
 }
 
@@ -105,33 +119,44 @@ fn path_stats(output_mode: ResultFormat, value: Value) {
         size *= SCALE;
     }
 
-    // Extract the values we care about from the result.
-    let results = results
-        .iter()
-        .map(|v| {
-            v.iter()
-                .map(|result| match value {
-                    Value::StepDir => result.step_dir,
-                    Value::DerivDir => result.deriv_dir,
-                    Value::Point => result.point,
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
+    let errors;
 
-    // For each path and step size, work out the "distance" between
-    // the shortest step result and that step's result.
-    fn get_errors(path_results: &Vec<Vec4>) -> Vec<f64> {
-        // First entry should be most precise.
-        let base = path_results[0].norm();
-        // Find difference against subsequent entries.
-        path_results[1..]
+    if Value::PathLen == value {
+        // Special case, to shoe-horn path lengths into "errors".
+        errors = results
             .iter()
-            .map(|x| (x.norm().sub(base)).len())
-            .collect::<Vec<_>>()
-    }
+            .map(|v| v.iter().map(|result| result.len).collect::<Vec<_>>())
+            .collect::<Vec<_>>();
+    } else {
+        // Extract the values we care about from the result.
+        let results = results
+            .iter()
+            .map(|v| {
+                v.iter()
+                    .map(|result| match value {
+                        Value::StepDir => result.step_dir,
+                        Value::DerivDir => result.deriv_dir,
+                        Value::Point => result.point,
+                        _ => panic!("Shouldn't happen"),
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
 
-    let errors = results.iter().map(get_errors).collect::<Vec<_>>();
+        // For each path and step size, work out the "distance" between
+        // the shortest step result and that step's result.
+        fn get_errors(path_results: &Vec<Vec4>) -> Vec<f64> {
+            // First entry should be most precise.
+            let base = path_results[0].norm();
+            // Find difference against subsequent entries.
+            path_results[1..]
+                .iter()
+                .map(|x| (x.norm().sub(base)).len())
+                .collect::<Vec<_>>()
+        }
+
+        errors = results.iter().map(get_errors).collect::<Vec<_>>();
+    }
 
     // Then, calcuate the ratio between successive terms, which should
     // roughly represent the scaling of the error term as we scale the
@@ -165,14 +190,48 @@ fn display(results: &[Vec<f64>]) {
     }
 }
 
-fn step_stats(step_size: f64) {
+fn step_stats(step_size: f64, proxies: &[Proxy]) {
     assert!(0.001 <= step_size && step_size <= 0.1);
 
     let tracer = default_tracer();
     let conf = default_canvas_conf();
     let results = tracer.render_step_stats(&conf, step_size);
 
+    print!("step num,length,error");
+    for proxy in proxies.iter() {
+        print!(
+            "{}",
+            match proxy {
+                Proxy::Curve => ",curvature,err per curve",
+                Proxy::Deriv => ",dcurvature,err per dcurve",
+                Proxy::NormMvmt => ",normal mvmt,err per norm mvmt",
+            }
+        );
+    }
+    println!();
+
     for result in results.iter() {
-        println!("{},{}", result.step_num, result.len);
+        let err = result.error.abs();
+
+        print!(
+            "{},{:e},{:e}",
+            result.step_num,
+            result.len,
+            result.error.abs(),
+        );
+
+        for proxy in proxies.iter() {
+            match proxy {
+                Proxy::Curve => print!(
+                    ",{:e},{:e}",
+                    result.curvature.abs(),
+                    (err / result.curvature).abs()
+                ),
+                Proxy::Deriv => print!(",{:e},{:e}", result.dcurve, err / result.dcurve),
+                Proxy::NormMvmt => print!(",{:e},{:e}", result.norm_diff, err / result.norm_diff),
+            }
+        }
+
+        println!();
     }
 }
