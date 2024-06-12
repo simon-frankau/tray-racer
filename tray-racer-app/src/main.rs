@@ -9,7 +9,7 @@ use anyhow::*;
 use clap::Parser;
 use glow::{Context, *};
 
-use tray_racer_lib::{CanvasConfig, EnvMap, Tracer, RAY_STEP};
+use tray_racer_lib::{CanvasConfig, EnvMap, Tracer};
 
 ////////////////////////////////////////////////////////////////////////
 // Command-line args
@@ -609,7 +609,7 @@ impl Drawable {
             self.tilt,
             self.turn,
             self.pan,
-            RAY_STEP,
+            None,
         );
 
         unsafe {
