@@ -101,7 +101,7 @@ fn main() -> Result<()> {
     let turn = args.turn;
     assert!(-180.0 <= turn && turn <= 180.0);
     let pan = args.pan;
-    assert!(-180.0 <= pan && pan <= 180.0);
+    assert!(-180.0 <= pan && pan <= 360.0);
     let step_size = args.step_size;
     if let Some(step_size) = step_size {
         assert!(0.001 <= step_size && step_size <= 0.1);

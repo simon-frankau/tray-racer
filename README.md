@@ -8,7 +8,30 @@ you the idea.
 Based on the maths discussed in
 https://github.com/simon-frankau/curved-spaces/ .
 
-## TODO
+The result is something that looks like this:
+
+![Image of a beach with something that looks like a spherical lens in
+the middle, giving a view through to a path at night. There is some
+distortion around the sphere.](./tray-racer.png)
+
+## Usage
+
+Fetch some environment maps as described below. For interactive
+exploring you can run
+
+```
+cargo run --release --bin tray-racer-app
+```
+
+If you want to generate images, you can use `tray-racer-cli`. An
+example of using this to generate an animation can be found in
+[pan.sh](./pan.sh). A pre-generated version is [here](./pan.mp4).
+
+If you want to read up in tedious detail how I got adaptive
+step-sizing working, you can read
+[convergence-test/README.md](convergence-test/README.md).
+
+## Next steps (aka TODO)
 
 The basic stuff works pretty well now, and I even have adaptive
 step-sizing. What I would like to do is be able to create an animation
